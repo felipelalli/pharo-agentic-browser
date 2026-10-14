@@ -125,6 +125,18 @@ Metacello new
     load: 'all'.
 ```
 
+> **Note:** Loading `WebUI` (and therefore `'all'`) updates Zinc, which triggers a warning dialog during installation. To avoid getting stuck on the dialog (e.g., in headless environments), install as follows:
+
+```smalltalk
+[Metacello new
+    baseline: 'AgenticBrowser';
+    repository: 'github://mumez/pharo-agentic-browser:main/src';
+    onConflict: [ :e | e useIncoming ];
+    onUpgrade: [ :e | e useIncoming ];
+    ignoreImage;
+    load: 'all'] on: MCMergeOrLoadWarning do: [ :ex | ex load ] 
+```
+
 ## Usage
 
 Open the browser window:
