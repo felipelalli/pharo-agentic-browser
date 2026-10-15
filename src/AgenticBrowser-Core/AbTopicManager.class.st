@@ -41,7 +41,7 @@ Implementation Points:
 - announcer is excluded from Fuel serialization; subscribers must re-subscribe after each load.
 - #cleanupAllTopics stops watchers and disconnects agents; called before replacing the default instance on load, and on actual image quit (not a plain save) via class>>shutDown:.
 - class>>initialize registers this class on Smalltalk's start-up and shut-down lists; class>>startUp: calls #resetStaleConnections on the default instance when the image resumes, so topics left open across a save/restart reconnect instead of writing to a dead subprocess's pipes.
-- class>>shutDown: calls #save only when a default instance already exists in memory, to avoid lazily creating and persisting an empty manager when AgenticBrowser was never opened this session. It only tears down watchers/connections/monitoring when isImageQuitting is true; a plain image save (isImageQuitting false) leaves them running since the image keeps executing afterward.
+- class>>shutDown: calls #save only when a default instance already exists in memory, to avoid lazily creating and persisting an empty manager when AgenticBrowser was never opened this session. It only tears down watchers/connections/monitoring when isImageQuitting is true; a plain image save (isImageQuitting false) leaves them running since the image keeps executing afterward. The quit teardown goes through #cleanupForImageQuit, which runs below the OSSubprocess child watcher's priority so the saved image never holds a half-finished watcher.
 - The monitoring loop sleeps for AbSettings>>#stallMonitoringIntervalSeconds between scans and swallows per-topic errors so one failing #sendPrompt: does not stop the rest from being checked.
 - class>>default starts watching and monitoring the instant the singleton is lazily created; class>>defaultLoaded: (used by class>>load) starts both on the freshly loaded instance too, so any entry point that touches the default manager (Pharo UI, Web UI, orchestration scripts) gets them for free.
 "
@@ -167,9 +167,7 @@ AbTopicManager class >> shutDown: isImageQuitting [
 	since they should otherwise keep running regardless of whether any UI window is open."
 
 	default ifNotNil: [ :defaultInstance |
-		isImageQuitting ifTrue: [
-			defaultInstance cleanupAllTopics.
-			defaultInstance stopStalledTopicsMonitoring ].
+		isImageQuitting ifTrue: [ defaultInstance cleanupForImageQuit ].
 		[ defaultInstance save ]
 			on: Error
 			do: [ :e | "ignore; do not abort the image save/quit" ] ]
@@ -241,6 +239,24 @@ AbTopicManager >> at: aTopicId [
 AbTopicManager >> cleanupAllTopics [
 
 	topics valuesDo: [ :topic | self teardownTopic: topic ]
+]
+
+{ #category : 'operations' }
+AbTopicManager >> cleanupForImageQuit [
+	"SessionManager runs shutDown: at timingPriority - 1, above the OSSubprocess child watcher
+	(highIOPriority). Disconnecting agents there lets the agent's exit notification wake this
+	process mid-#checkFinishedChildren, so the image is saved with the watcher suspended before
+	it frees its ExternalAddress; on restart, terminating that watcher frees a stale address and
+	fails. Running the cleanup below the watcher's priority lets the watcher finish first."
+
+	| done |
+	done := Semaphore new.
+	[
+	[
+	self cleanupAllTopics.
+	self stopStalledTopicsMonitoring ] ensure: [ done signal ] ]
+		forkAt: Processor userSchedulingPriority.
+	done wait
 ]
 
 { #category : 'operations' }

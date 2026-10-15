@@ -121,6 +121,25 @@ AbTopicManagerTest >> testResetStaleConnectionsIgnoresErrorsFromDeadConnections 
 ]
 
 { #category : 'tests' }
+AbTopicManagerTest >> testCleanupForImageQuitDisconnectsBelowChildWatcherPriority [
+
+	| manager topic mockClient disconnectPriority done |
+	manager := AbTopicManager forTest.
+	topic := self newTopic: 'Quit cleanup priority'.
+	manager addTopic: topic.
+	mockClient := MockObject new.
+	mockClient on: #disconnect verify: [ disconnectPriority := Processor activePriority ].
+	topic session client: mockClient.
+	done := Semaphore new.
+	"Mimic SessionManager>>snapshot:andQuit:, which runs shutDown: at timingPriority - 1"
+	[
+	manager cleanupForImageQuit.
+	done signal ] forkAt: Processor timingPriority - 1.
+	done wait.
+	self assert: disconnectPriority < Processor highIOPriority
+]
+
+{ #category : 'tests' }
 AbTopicManagerTest >> testStartUpTrueResetsStaleConnectionsOnDefaultManager [
 
 	| topic session mockClient originalDefault |
