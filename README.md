@@ -373,6 +373,7 @@ Open the Settings dialog from the **Settings…** menu in the browser window's m
 | `useStBuddySkillOnInitialPrompt` | `true` | Prefix the initial prompt with the `st-buddy` skill instruction |
 | `useCommandOnGoalSet` | `false` | Prefix the goal notification prompt with `goalSetCommand` |
 | `goalSetCommand` | `'/goal'` | Command prefix used when `useCommandOnGoalSet` is true |
+| `monitoringIntervalSeconds` | `30` | Seconds between the periodic topic checks (e.g. resuming stalled goal topics). Formerly `stallMonitoringIntervalSeconds`; an `ab-settings.json` with the old key is still read, and is saved with the new key |
 
 ### Per-Topic Settings
 

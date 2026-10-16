@@ -518,30 +518,30 @@ AbTopicManagerTest >> testClassAnnouncerReturnsAnnouncer [
 ]
 
 { #category : 'tests' }
-AbTopicManagerTest >> testIsMonitoringStalledTopicsFalseByDefault [
+AbTopicManagerTest >> testIsMonitoringFalseByDefault [
 
-	self deny: AbTopicManager forTest isMonitoringStalledTopics
+	self deny: AbTopicManager forTest isMonitoring
 ]
 
 { #category : 'tests' }
-AbTopicManagerTest >> testStartStalledTopicsMonitoringStartsBackgroundProcess [
+AbTopicManagerTest >> testStartMonitoringStartsBackgroundProcess [
 
 	| manager |
 	manager := AbTopicManager new.
 	[
-	manager startStalledTopicsMonitoring.
-	self assert: manager isMonitoringStalledTopics ]
-		ensure: [ manager stopStalledTopicsMonitoring ]
+	manager startMonitoring.
+	self assert: manager isMonitoring ]
+		ensure: [ manager stopMonitoring ]
 ]
 
 { #category : 'tests' }
-AbTopicManagerTest >> testStopStalledTopicsMonitoringTerminatesBackgroundProcess [
+AbTopicManagerTest >> testStopMonitoringTerminatesBackgroundProcess [
 
 	| manager |
 	manager := AbTopicManager new.
-	manager startStalledTopicsMonitoring.
-	manager stopStalledTopicsMonitoring.
-	self deny: manager isMonitoringStalledTopics
+	manager startMonitoring.
+	manager stopMonitoring.
+	self deny: manager isMonitoring
 ]
 
 { #category : 'tests' }
@@ -581,10 +581,10 @@ AbTopicManagerTest >> testStartUpTrueStartsMonitoringAndWatching [
 	AbTopicManager default addTopic: topic.
 	[
 	AbTopicManager startUp: true.
-	self assert: AbTopicManager default isMonitoringStalledTopics.
+	self assert: AbTopicManager default isMonitoring.
 	self assert: topic relatedPackagesWatcher isWatching ]
 		ensure: [
-			AbTopicManager default stopStalledTopicsMonitoring.
+			AbTopicManager default stopMonitoring.
 			AbTopicManager defaultLoaded: originalDefault.
 			AbTopicManager forTest: nil ]
 ]
@@ -594,17 +594,17 @@ AbTopicManagerTest >> testDefaultLoadedStopsPreviousMonitoring [
 
 	| oldManager newManager |
 	oldManager := AbTopicManager new.
-	oldManager startStalledTopicsMonitoring.
-	self assert: oldManager isMonitoringStalledTopics.
+	oldManager startMonitoring.
+	self assert: oldManager isMonitoring.
 
 	newManager := AbTopicManager new.
 	AbTopicManager default: oldManager.
 	[
 	AbTopicManager defaultLoaded: newManager.
-	self deny: oldManager isMonitoringStalledTopics.
-	self assert: newManager isMonitoringStalledTopics ]
+	self deny: oldManager isMonitoring.
+	self assert: newManager isMonitoring ]
 		ensure: [
-			newManager stopStalledTopicsMonitoring.
+			newManager stopMonitoring.
 			AbTopicManager default: nil ]
 ]
 

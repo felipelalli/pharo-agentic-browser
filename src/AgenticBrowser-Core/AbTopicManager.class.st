@@ -11,7 +11,7 @@ Responsibility:
 - I drop stale ACP client connections for all topics when the image resumes after a save/restart.
 - I persist myself automatically whenever the image saves or quits, so topics survive a Pharo exit even if the AgenticBrowser window was never closed.
 - I run a background process that periodically scans all topics for stalled ones and nudges them with a resume prompt.
-- I start watching for related-package changes across all my topics automatically. Both watching and stall monitoring start as soon as I am accessed (via #default or #load), independent of any UI (Pharo window, Web UI, or orchestration scripts) — watching a topic's packages is harmless even in a headless environment where no human edits will ever happen.
+- I start watching for related-package changes across all my topics automatically. Both watching and monitoring start as soon as I am accessed (via #default or #load), independent of any UI (Pharo window, Web UI, or orchestration scripts) — watching a topic's packages is harmless even in a headless environment where no human edits will ever happen.
 
 Collaborators:
 - AbTopic: I own and lifecycle-manage all topic instances.
@@ -27,13 +27,13 @@ Public API and Key Messages:
 - #topics - All registered topics as an Array.
 - #topicNamed: - Look up the first topic by name (lexicographic topicId order).
 - #topicForWorkingDirectoryPath: - Look up a topic by its working directory path.
-- #startStalledTopicsMonitoring / #stopStalledTopicsMonitoring - Start or stop the background stall-monitoring process.
+- #startMonitoring / #stopMonitoring - Start or stop the background monitoring process that runs the periodic topic checks.
 - #resumeStalledTopics - Send each stalled topic's goal resume prompt once, synchronously.
 
 Internal Representation:
 - topics - Dictionary keyed by topicId String, valued by AbTopic.
 - announcer - Lazy Announcer; excluded from Fuel and recreated lazily after load.
-- stallMonitoringProcess - Background Process that periodically calls #resumeStalledTopics; excluded from Fuel.
+- monitoringProcess - Background Process that runs #runMonitoringLoop; excluded from Fuel.
 - default (class inst var) - The global singleton instance.
 - forTest (class inst var) - Isolated instance used by the test suite; does not affect the global instance.
 
@@ -42,7 +42,7 @@ Implementation Points:
 - #cleanupAllTopics stops watchers and disconnects agents; called before replacing the default instance on load, and on actual image quit (not a plain save) via class>>shutDown:.
 - class>>initialize registers this class on Smalltalk's start-up and shut-down lists; class>>startUp: calls #resetStaleConnections on the default instance when the image resumes, so topics left open across a save/restart reconnect instead of writing to a dead subprocess's pipes.
 - class>>shutDown: calls #save only when a default instance already exists in memory, to avoid lazily creating and persisting an empty manager when AgenticBrowser was never opened this session. It only tears down watchers/connections/monitoring when isImageQuitting is true; a plain image save (isImageQuitting false) leaves them running since the image keeps executing afterward. The quit teardown goes through #cleanupForImageQuit, which runs below the OSSubprocess child watcher's priority so the saved image never holds a half-finished watcher.
-- The monitoring loop sleeps for AbSettings>>#stallMonitoringIntervalSeconds between scans and swallows per-topic errors so one failing #sendPrompt: does not stop the rest from being checked.
+- #runMonitoringLoop sleeps for AbSettings>>#monitoringIntervalSeconds between ticks and runs each periodic check in turn (currently #resumeStalledTopics). Each check swallows per-topic errors so one failing #sendPrompt: does not stop the rest from being checked.
 - class>>default starts watching and monitoring the instant the singleton is lazily created; class>>defaultLoaded: (used by class>>load) starts both on the freshly loaded instance too, so any entry point that touches the default manager (Pharo UI, Web UI, orchestration scripts) gets them for free.
 "
 Class {
@@ -51,7 +51,7 @@ Class {
 	#instVars : [
 		'topics',
 		'announcer',
-		'stallMonitoringProcess'
+		'monitoringProcess'
 	],
 	#classInstVars : [
 		'default',
@@ -68,7 +68,7 @@ AbTopicManager class >> default [
 	default ifNil: [
 		default := self new.
 		default startAllTopicsWatching.
-		default startStalledTopicsMonitoring ].
+		default startMonitoring ].
 	^ default
 ]
 
@@ -87,11 +87,11 @@ AbTopicManager class >> defaultLoaded: anInstance [
 
 	default ifNotNil: [
 		default cleanupAllTopics.
-		default stopStalledTopicsMonitoring ].
+		default stopMonitoring ].
 	self default: anInstance.
 	anInstance ifNil: [ ^ self ].
 	anInstance startAllTopicsWatching.
-	anInstance startStalledTopicsMonitoring.
+	anInstance startMonitoring.
 	self announcer announce: (AbTopicManagerLoaded topicManager: anInstance)
 ]
 
@@ -128,7 +128,7 @@ AbTopicManager class >> forTest: anInstance [
 { #category : 'fuel' }
 AbTopicManager class >> fuelIgnoredInstanceVariableNames [
 
-	^ #( 'announcer' 'stallMonitoringProcess' )
+	^ #( 'announcer' 'monitoringProcess' )
 ]
 
 { #category : 'class initialization' }
@@ -136,7 +136,7 @@ AbTopicManager class >> initialize [
 
 	default ifNotNil: [
 		default cleanupAllTopics.
-		default stopStalledTopicsMonitoring ].
+		default stopMonitoring ].
 	default := forTest := nil.
 	Smalltalk addToStartUpList: self.
 	Smalltalk addToShutDownList: self
@@ -153,7 +153,7 @@ AbTopicManager class >> startUp: resuming [
 	default ifNotNil: [
 		default resetStaleConnections.
 		default startAllTopicsWatching.
-		default startStalledTopicsMonitoring ]
+		default startMonitoring ]
 ]
 
 { #category : 'system startup' }
@@ -180,7 +180,7 @@ AbTopicManager class >> load [
 	self defaultFileReference exists ifFalse: [ ^ self ].
 	default ifNotNil: [
 		default cleanupAllTopics.
-		default stopStalledTopicsMonitoring ].
+		default stopMonitoring ].
 	newDefault := self loadFrom: self defaultFileReference.
 	self defaultLoaded: newDefault
 ]
@@ -254,7 +254,7 @@ AbTopicManager >> cleanupForImageQuit [
 	[
 	[
 	self cleanupAllTopics.
-	self stopStalledTopicsMonitoring ] ensure: [ done signal ] ]
+	self stopMonitoring ] ensure: [ done signal ] ]
 		forkAt: Processor userSchedulingPriority.
 	done wait
 ]
@@ -345,9 +345,9 @@ AbTopicManager >> stopAllTopicsWatching [
 ]
 
 { #category : 'testing' }
-AbTopicManager >> isMonitoringStalledTopics [
+AbTopicManager >> isMonitoring [
 
-	^ stallMonitoringProcess notNil and: [ stallMonitoringProcess isTerminated not ]
+	^ monitoringProcess notNil and: [ monitoringProcess isTerminated not ]
 ]
 
 { #category : 'operations' }
@@ -360,27 +360,27 @@ AbTopicManager >> resumeStalledTopics [
 ]
 
 { #category : 'private' }
-AbTopicManager >> runStallMonitoringLoop [
+AbTopicManager >> runMonitoringLoop [
 
-	[ stallMonitoringProcess notNil ] whileTrue: [
-		(Delay forSeconds: AbSettings default stallMonitoringIntervalSeconds) wait.
+	[ monitoringProcess notNil ] whileTrue: [
+		(Delay forSeconds: AbSettings default monitoringIntervalSeconds) wait.
 		self resumeStalledTopics ]
 ]
 
 { #category : 'monitoring' }
-AbTopicManager >> startStalledTopicsMonitoring [
+AbTopicManager >> startMonitoring [
 
-	self isMonitoringStalledTopics ifTrue: [ ^ self ].
-	stallMonitoringProcess := [ self runStallMonitoringLoop ] newProcess
-		name: 'AgenticBrowser topics stall monitor';
+	self isMonitoring ifTrue: [ ^ self ].
+	monitoringProcess := [ self runMonitoringLoop ] newProcess
+		name: 'AgenticBrowser topics monitor';
 		priority: Processor userBackgroundPriority;
 		yourself.
-	stallMonitoringProcess resume
+	monitoringProcess resume
 ]
 
 { #category : 'monitoring' }
-AbTopicManager >> stopStalledTopicsMonitoring [
+AbTopicManager >> stopMonitoring [
 
-	stallMonitoringProcess ifNotNil: [ :p | p terminate ].
-	stallMonitoringProcess := nil
+	monitoringProcess ifNotNil: [ :p | p terminate ].
+	monitoringProcess := nil
 ]
