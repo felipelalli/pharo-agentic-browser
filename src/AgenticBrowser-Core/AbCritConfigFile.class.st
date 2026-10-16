@@ -3,13 +3,15 @@ I am the .crit.config.json of one working directory.
 
 Responsibility:
 - I read and write the port, leaving every other key intact.
+- I write AgenticBrowser's crit finish hooks, leaving other keys and other hooks intact, and refuse when the user already defined one of those finish hooks.
 - I treat a missing file, unreadable JSON, 0, or a port outside 1..65535 as unassigned.
 - I own the built-in default document used when a directory has no readable config.
 - On the class side I ensure a working directory has a port no running crit of another topic holds: I keep the configured port when it is free, and otherwise write the lowest free port in AbSettings default critPortInterval.
 
 Collaborators:
 - AbSettings: I read #critPortInterval when a port must be written.
-- AbCritDaemon: It asks me for the port just before spawning crit; I ask each other topic's daemon whether crit is running.
+- AbCritDaemon: It asks me for the port and the finish hooks just before spawning crit; I ask each other topic's daemon whether crit is running.
+- AbCritFinishResult: I ask it whether an existing hook command is AgenticBrowser's.
 - AbTopicManager: my class-side topicManager supplies the topics whose ports may be in use.
 - AbTopic: I read each topic's working directory and crit daemon when collecting ports in use.
 
@@ -20,6 +22,7 @@ Public API and Key Messages:
 - AbCritConfigFile class>>topicManager: - Inject the AbTopicManager to consult (defaults to AbTopicManager default).
 - #port - Assigned port, or nil. Cached once read.
 - #writePort: - Set port in the existing document, or in the built-in default when the file is missing or unreadable.
+- #ensureFinishHooks: - Merge the given hook name -> command entries into hooks; answer false, writing nothing, when one of those names holds a user-defined command. Writes only when an entry differs, so crit's project trust stays valid.
 
 Internal Representation:
 - directory - FileReference of the working directory that contains .crit.config.json.
@@ -169,9 +172,38 @@ AbCritConfigFile >> writePort: anInteger [
 	| contents |
 	contents := self contentsOrDefault.
 	contents at: 'port' put: anInteger.
-	self file writeStreamDo: [ :stream |
-		stream nextPutAll: (STONJSON toStringPretty: contents) ].
+	self writeContents: contents.
 	port := anInteger
+]
+
+{ #category : 'operations' }
+AbCritConfigFile >> ensureFinishHooks: aHookDictionary [
+
+	| contents hooks |
+	contents := self contentsOrDefault.
+	hooks := contents at: 'hooks' ifAbsentPut: [ Dictionary new ].
+	(self hasUserDefinedHookNamedAnyOf: aHookDictionary keys in: hooks) ifTrue: [ ^ false ].
+	(aHookDictionary associations allSatisfy: [ :each |
+		 (hooks at: each key ifAbsent: [ nil ]) = each value ]) ifFalse: [
+		hooks addAll: aHookDictionary.
+		self writeContents: contents ].
+	^ true
+]
+
+{ #category : 'private' }
+AbCritConfigFile >> hasUserDefinedHookNamedAnyOf: aHookNameCollection in: aHookDictionary [
+
+	^ aHookNameCollection anySatisfy: [ :name |
+		  (aHookDictionary at: name ifAbsent: [ nil ])
+			  ifNil: [ false ]
+			  ifNotNil: [ :command | (AbCritFinishResult isHookCommand: command) not ] ]
+]
+
+{ #category : 'private' }
+AbCritConfigFile >> writeContents: aDictionary [
+
+	self file safeWriteStreamDo: [ :stream |
+		stream nextPutAll: (STONJSON toStringPretty: aDictionary) ]
 ]
 
 { #category : 'private' }

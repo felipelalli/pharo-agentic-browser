@@ -260,6 +260,16 @@ When `AbSettings >> useDefaultMcpServers` is `true` (the default), the built-in 
 
 Watching starts automatically when a topic first connects (on the first **Send**).
 
+### Code Review with crit
+
+When `useCrit` is `true` and the topic's working directory is a git repository, right-click the topic and choose **Review by crit** to review the agent's changes in [crit](https://github.com/tomasz-tomczyk/crit).
+
+AgenticBrowser adds `on_finish_unresolved` / `on_finish_approved` hooks to the directory's `.crit.config.json`. When you press **Finish** for the first time after starting the review, the hook saves the result under `<imageDir>/agentic-browser/crit-results/`, and AgenticBrowser sends crit's review prompt to the topic once the agent's turn has ended (it checks every `monitoringIntervalSeconds`). The prompt ends with `crit --session <id>`, so from then on the agent receives later rounds from crit itself. An approval on the first Finish is shown as a system message instead.
+
+- crit asks you once to trust the project's hooks when you first press Finish.
+- If `.crit.config.json` already defines its own `on_finish_unresolved` or `on_finish_approved` hook, AgenticBrowser leaves it unchanged and does not deliver the first result.
+- The "first Finish" state is not saved with the image. After restarting the image, choose **Review by crit** again.
+
 ## Supported Agents
 
 Any ACP compatible coding agent can be used. The following agents are available as presets in the New Topic dialog:

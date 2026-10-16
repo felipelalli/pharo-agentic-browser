@@ -236,7 +236,7 @@ AbCritDaemonTest >> testStartReviewReusesRunningDaemon [
 		ifFailed: [ :reason | self fail: reason ].
 	self assert: url equals: 'http://localhost:9080/'.
 	self assert: port equals: 9080.
-	self assert: topic messages last text equals: 'Crit review: http://localhost:9080/'.
+	self assert: topic messages last text equals: 'Crit review: http://localhost:9080/ (crit asks once to trust this project''s hooks when you first press Finish)'.
 	self assert: (self spawnCount: daemon) equals: 0.
 	self assert: topic isWorking
 ]
@@ -256,7 +256,7 @@ AbCritDaemonTest >> testStartReviewSpawnsThenReportsUrl [
 		ifFailed: [ :reason | self fail: reason ].
 	log := AbSettings defaultAgenticBrowserRootDirectory / 'crit-logs' / 'spawn.log'.
 	self assert: url equals: 'http://192.168.1.10:9080/'.
-	self assert: topic messages last text equals: 'Crit review: http://192.168.1.10:9080/'.
+	self assert: topic messages last text equals: 'Crit review: http://192.168.1.10:9080/ (crit asks once to trust this project''s hooks when you first press Finish)'.
 	self assert: (self spawnCount: daemon) equals: 1.
 	self assert: (daemon executedCommands second includesSubstring: '--host 0.0.0.0').
 	self assert: (daemon executedCommands second includesSubstring: '--allow-unauthenticated-network').
@@ -480,4 +480,78 @@ AbCritDaemonTest >> testOverlappingStartsSpawnOnce [
 	self assert: (done waitTimeoutSeconds: 2) equals: false.
 	self assert: (self spawnCount: first) + (self spawnCount: second) equals: 1 ]
 		ensure: [ release signal ]
+]
+
+{ #category : 'private' }
+AbCritDaemonTest >> startSpawning: aDaemon [
+
+	aDaemon statusReplies
+		add: '{"daemon":{"running":false}}';
+		add: '{"daemon":{"running":true}}'.
+	aDaemon
+		startReviewForHost: 'localhost'
+		ifStarted: [ :url :port | ]
+		ifFailed: [ :reason | self fail: reason ]
+]
+
+{ #category : 'tests' }
+AbCritDaemonTest >> testStartReviewSpawnWritesFinishHooksForTopic [
+
+	| topic hooks |
+	topic := self readyTopicNamed: 'hooks'.
+	self startSpawning: (self daemonFor: topic).
+	hooks := (STONJSON fromString: (topic workingDirectory path / '.crit.config.json') contents) at: 'hooks'.
+	AbCritFinishResult kinds do: [ :kind |
+		self
+			assert: (hooks at: 'on_finish_' , kind)
+			equals: 'inline:cat > ''' , (AbCritFinishResult fileForTopicId: topic topicId kind: kind) fullName , '''' ].
+	self assert: AbCritFinishResult directory exists
+]
+
+{ #category : 'tests' }
+AbCritDaemonTest >> testStartReviewWithUserFinishHookStartsAndSaysDeliveryIsOff [
+
+	| topic userHooks dir |
+	topic := self readyTopicNamed: 'user-hook'.
+	dir := topic workingDirectory path.
+	userHooks := Dictionary new at: 'on_finish_unresolved' put: 'inline:echo mine'; yourself.
+	(dir / '.crit.config.json') writeStreamDo: [ :stream |
+		stream nextPutAll: (STONJSON toString: (Dictionary new at: 'port' put: 9080; at: 'hooks' put: userHooks; yourself)) ].
+	self startSpawning: (self daemonFor: topic).
+	self assert: ((STONJSON fromString: (dir / '.crit.config.json') contents) at: 'hooks') equals: userHooks.
+	self assert: (topic messages anySatisfy: [ :each | each text includesSubstring: 'automatic delivery' ]).
+	self assert: (topic messages last text beginsWith: 'Crit review: http://localhost:9080/')
+]
+
+{ #category : 'tests' }
+AbCritDaemonTest >> testStartReviewAwaitsFirstFinishAndDeletesStaleResults [
+
+	| topic daemon files |
+	topic := self readyTopicNamed: 'await'.
+	daemon := self daemonFor: topic.
+	files := AbCritFinishResult filesForTopicId: topic topicId.
+	AbCritFinishResult directory ensureCreateDirectory.
+	[
+	files do: [ :file | file ensureCreateFile ].
+	daemon statusReplies add: '{"daemon":{"running":true}}'.
+	daemon
+		startReviewForHost: 'localhost'
+		ifStarted: [ :url :port | ]
+		ifFailed: [ :reason | self fail: reason ].
+	self assert: daemon isAwaitingFirstFinish.
+	self assert: (files noneSatisfy: [ :file | file exists ]) ]
+		ensure: [ files do: [ :file | file ensureDelete ] ]
+]
+
+{ #category : 'tests' }
+AbCritDaemonTest >> testFailedStartDoesNotAwaitFirstFinish [
+
+	| daemon |
+	daemon := self daemonFor: (self readyTopicNamed: 'await-failed').
+	daemon statusReplies add: 'not-json'.
+	daemon
+		startReviewForHost: 'localhost'
+		ifStarted: [ :url :port | self fail: url ]
+		ifFailed: [ :reason | ].
+	self deny: daemon isAwaitingFirstFinish
 ]
