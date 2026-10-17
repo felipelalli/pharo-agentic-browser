@@ -328,15 +328,16 @@ AbSettingsTest >> testSaveFullToReplacesExistingLongerFileCompletely [
 { #category : 'tests' }
 AbSettingsTest >> testSaveFullToRestoresExistingFileWhenWritingFails [
 
-	| original |
+	| settings original |
 	original := '{"monitoringIntervalSeconds": 30}'.
 	self withTempDirectoryDo: [ :root |
 		| file |
 		file := root / 'ab-settings.json'.
 		file writeStreamDo: [ :stream | stream nextPutAll: original ].
-		self
-			should: [ AbSettingsFailingJson new saveFullTo: file ]
-			raise: Error.
+		settings := AbSettings new.
+		"An empty block is not JSON, so serialization fails inside the write."
+		settings monitoringIntervalSeconds: [].
+		self should: [ settings saveFullTo: file ] raise: Error.
 		self assert: file exists.
 		self assert: file contents equals: original ]
 ]
