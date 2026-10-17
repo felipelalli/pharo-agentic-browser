@@ -310,6 +310,43 @@ AbSettingsTest >> testSaveAfterLoadingOldIntervalKeyWritesOnlyNewKey [
 ]
 
 { #category : 'tests' }
+AbSettingsTest >> testSaveFullToReplacesExistingLongerFileCompletely [
+
+	| file settings dict |
+	file := FileLocator temp / ('ab-settings-' , UUID new asString36) / 'ab-settings.json'.
+	file parent ensureCreateDirectory.
+	[
+		file writeStreamDo: [ :stream |
+			stream nextPutAll: (String new: 40000 withAll: $x).
+			stream nextPutAll: 'TRAILING-OLD-CONTENT' ].
+		settings := AbSettings new.
+		settings monitoringIntervalSeconds: 15.
+		settings saveFullTo: file.
+		self deny: (file contents includesSubstring: 'TRAILING-OLD-CONTENT').
+		dict := STONJSON fromString: file contents.
+		self assert: (dict at: 'monitoringIntervalSeconds') equals: 15
+	] ensure: [ file parent exists ifTrue: [ file parent deleteAll ] ]
+]
+
+{ #category : 'tests' }
+AbSettingsTest >> testSaveFullToRestoresExistingFileWhenWritingFails [
+
+	| file settings original |
+	file := FileLocator temp / ('ab-settings-' , UUID new asString36) / 'ab-settings.json'.
+	file parent ensureCreateDirectory.
+	[
+		original := '{"monitoringIntervalSeconds": 30}'.
+		file writeStreamDo: [ :stream | stream nextPutAll: original ].
+		settings := AbSettings new.
+		"MessageSend is not JSON, so STONJSON signals inside the write."
+		settings monitoringIntervalSeconds: (MessageSend receiver: nil selector: #foo).
+		self should: [ settings saveFullTo: file ] raise: Error.
+		self assert: file exists.
+		self assert: file contents equals: original
+	] ensure: [ file parent exists ifTrue: [ file parent deleteAll ] ]
+]
+
+{ #category : 'tests' }
 AbSettingsTest >> testUseCritDefaultIsFalse [
 
 	self deny: AbSettings default useCrit

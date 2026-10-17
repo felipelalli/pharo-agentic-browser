@@ -319,6 +319,26 @@ AbWorkingDirectoryTest >> testExportClassNamedWritesClassFile [
 ]
 
 { #category : 'tests' }
+AbWorkingDirectoryTest >> testExportClassNamedReplacesExistingLongerFileCompletely [
+
+	| topic workDir path classFile |
+	topic := AbTopic new title: 'ab-test-export-overwrite'.
+	path := (FileLocator temp / ('ab-wd-' , UUID new asString36)) fullName.
+	topic workingDirectoryPath: path.
+	workDir := AbWorkingDirectory forTopic: topic.
+	[
+		classFile := workDir sourcePath / 'AgenticBrowser-Core' / 'AbTopic.class.st'.
+		classFile parent ensureCreateDirectory.
+		classFile writeStreamDo: [ :stream |
+			stream nextPutAll: (String new: 40000 withAll: $X).
+			stream nextPutAll: 'TRAILING-OLD-CONTENT' ].
+		workDir exportClassNamed: 'AbTopic' in: 'AgenticBrowser-Core'.
+		self deny: (classFile contents includesSubstring: 'TRAILING-OLD-CONTENT').
+		self assert: (classFile contents includesSubstring: 'AbTopic')
+	] ensure: [ workDir path exists ifTrue: [ workDir path deleteAll ] ]
+]
+
+{ #category : 'tests' }
 AbWorkingDirectoryTest >> testEnsureExistsAssignsNoPortWhenUseCritIsTrue [
 
 	| root topic |
