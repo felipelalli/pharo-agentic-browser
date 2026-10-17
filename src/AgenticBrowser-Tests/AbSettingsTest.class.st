@@ -310,6 +310,39 @@ AbSettingsTest >> testSaveAfterLoadingOldIntervalKeyWritesOnlyNewKey [
 ]
 
 { #category : 'tests' }
+AbSettingsTest >> testSaveFullToReplacesExistingLongerFileCompletely [
+
+	| settings dict |
+	self withTempDirectoryDo: [ :root |
+		| file |
+		file := root / 'ab-settings.json'.
+		self writeLongerFile: file marked: 'TRAILING-OLD-CONTENT'.
+		settings := AbSettings new.
+		settings monitoringIntervalSeconds: 15.
+		settings saveFullTo: file.
+		self deny: (file contents includesSubstring: 'TRAILING-OLD-CONTENT').
+		dict := STONJSON fromString: file contents.
+		self assert: (dict at: 'monitoringIntervalSeconds') equals: 15 ]
+]
+
+{ #category : 'tests' }
+AbSettingsTest >> testSaveFullToRestoresExistingFileWhenWritingFails [
+
+	| settings original |
+	original := '{"monitoringIntervalSeconds": 30}'.
+	self withTempDirectoryDo: [ :root |
+		| file |
+		file := root / 'ab-settings.json'.
+		file writeStreamDo: [ :stream | stream nextPutAll: original ].
+		settings := AbSettings new.
+		"An empty block is not JSON, so serialization fails inside the write."
+		settings monitoringIntervalSeconds: [].
+		self should: [ settings saveFullTo: file ] raise: Error.
+		self assert: file exists.
+		self assert: file contents equals: original ]
+]
+
+{ #category : 'tests' }
 AbSettingsTest >> testUseCritDefaultIsFalse [
 
 	self deny: AbSettings default useCrit

@@ -125,8 +125,7 @@ AbSettings class >> saveTo: aFileReference [
 AbSettings >> saveFullTo: aFileReference [
 
 	aFileReference parent ensureCreateDirectory.
-	aFileReference ensureDelete.
-	aFileReference writeStreamDo: [ :stream |
+	aFileReference safeWriteStreamDo: [ :stream |
 		stream nextPutAll: (STONJSON toStringPretty: self asFullJsonDictionary) ]
 ]
 
