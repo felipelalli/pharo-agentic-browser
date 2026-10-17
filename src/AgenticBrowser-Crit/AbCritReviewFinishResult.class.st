@@ -30,8 +30,8 @@ Class {
 		'kind',
 		'payload'
 	],
-	#category : 'AgenticBrowser-Core',
-	#package : 'AgenticBrowser-Core'
+	#category : 'AgenticBrowser-Crit',
+	#package : 'AgenticBrowser-Crit'
 }
 
 { #category : 'instance creation' }

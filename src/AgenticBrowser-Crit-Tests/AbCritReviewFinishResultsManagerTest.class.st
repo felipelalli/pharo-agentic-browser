@@ -1,8 +1,8 @@
 Class {
 	#name : 'AbCritReviewFinishResultsManagerTest',
 	#superclass : 'AbTestCase',
-	#category : 'AgenticBrowser-Tests',
-	#package : 'AgenticBrowser-Tests'
+	#category : 'AgenticBrowser-Crit-Tests',
+	#package : 'AgenticBrowser-Crit-Tests'
 }
 
 { #category : 'tests' }

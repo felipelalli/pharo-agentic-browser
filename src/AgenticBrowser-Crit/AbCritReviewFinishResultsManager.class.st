@@ -45,8 +45,8 @@ Class {
 	#classInstVars : [
 		'default'
 	],
-	#category : 'AgenticBrowser-Core',
-	#package : 'AgenticBrowser-Core'
+	#category : 'AgenticBrowser-Crit',
+	#package : 'AgenticBrowser-Crit'
 }
 
 { #category : 'class initialization' }

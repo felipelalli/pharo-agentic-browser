@@ -25,8 +25,8 @@ Class {
 		'finishedSemaphore',
 		'defaultStatusStdout'
 	],
-	#category : 'AgenticBrowser-Tests',
-	#package : 'AgenticBrowser-Tests'
+	#category : 'AgenticBrowser-Crit-Tests',
+	#package : 'AgenticBrowser-Crit-Tests'
 }
 
 { #category : 'class initialization' }

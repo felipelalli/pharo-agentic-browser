@@ -6,8 +6,8 @@ Class {
 		'sentPrompts',
 		'resultTopicIds'
 	],
-	#category : 'AgenticBrowser-Tests',
-	#package : 'AgenticBrowser-Tests'
+	#category : 'AgenticBrowser-Crit-Tests',
+	#package : 'AgenticBrowser-Crit-Tests'
 }
 
 { #category : 'running' }
