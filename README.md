@@ -260,6 +260,16 @@ When `AbSettings >> useDefaultMcpServers` is `true` (the default), the built-in 
 
 Watching starts automatically when a topic first connects (on the first **Send**).
 
+### Code Review with crit
+
+When `useCrit` is `true` and the topic's working directory is a git repository, right-click the topic and choose **Review by crit** to review the agent's changes in [crit](https://github.com/tomasz-tomczyk/crit).
+
+AgenticBrowser adds `on_finish_unresolved` / `on_finish_approved` hooks to the directory's `.crit.config.json`. When you press **Finish** for the first time after starting the review, the hook saves the result under `<imageDir>/agentic-browser/crit-results/`, and AgenticBrowser sends crit's review prompt to the topic once the agent's turn has ended (it checks every `monitoringIntervalSeconds`). The prompt ends with `crit --session <id>`, so from then on the agent receives later rounds from crit itself. An approval on the first Finish is shown as a system message instead.
+
+- crit asks you once to trust the project's hooks when you first press Finish.
+- If `.crit.config.json` already defines its own `on_finish_unresolved` or `on_finish_approved` hook, AgenticBrowser leaves it unchanged and does not deliver the first result.
+- The "first Finish" state is not saved with the image. After restarting the image, choose **Review by crit** again.
+
 ## Supported Agents
 
 Any ACP compatible coding agent can be used. The following agents are available as presets in the New Topic dialog:
@@ -373,6 +383,7 @@ Open the Settings dialog from the **Settings…** menu in the browser window's m
 | `useStBuddySkillOnInitialPrompt` | `true` | Prefix the initial prompt with the `st-buddy` skill instruction |
 | `useCommandOnGoalSet` | `false` | Prefix the goal notification prompt with `goalSetCommand` |
 | `goalSetCommand` | `'/goal'` | Command prefix used when `useCommandOnGoalSet` is true |
+| `monitoringIntervalSeconds` | `30` | Seconds between the periodic topic checks (e.g. resuming stalled goal topics). Formerly `stallMonitoringIntervalSeconds`; an `ab-settings.json` with the old key is still read, and is saved with the new key |
 
 ### Per-Topic Settings
 

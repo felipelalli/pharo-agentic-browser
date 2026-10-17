@@ -7,7 +7,7 @@ Responsibility:
 - I control whether built-in Smalltalk MCP servers are merged into the agent's MCP config.
 - I control whether crit review is offered (#useCrit) and the inclusive port range string (#critPortRange) from which a port is picked when crit starts.
 - I persist the list of available coding agents shown in the New Topic dialog.
-- I control how often AbTopicManager scans for stalled topics via #stallMonitoringIntervalSeconds.
+- I control how often AbTopicManager runs its periodic topic checks via #monitoringIntervalSeconds. I still accept the old key stallMonitoringIntervalSeconds when loading, and save it under the new key.
 - I load from and save to ab-settings.json using STON/JSON serialization.
 - I delegate defaults to the global instance when I am a non-default (per-topic) copy.
 
@@ -300,8 +300,8 @@ AbSettings >> defaultGoalHavingTopicStallThresholdSeconds [
 ]
 
 { #category : 'defaults' }
-AbSettings >> defaultStallMonitoringIntervalSeconds [
-	self isDefault ifFalse: [ ^ self class default defaultStallMonitoringIntervalSeconds ].
+AbSettings >> defaultMonitoringIntervalSeconds [
+	self isDefault ifFalse: [ ^ self class default defaultMonitoringIntervalSeconds ].
 	^ 30
 ]
 
@@ -503,17 +503,24 @@ AbSettings >> goalHavingTopicStallThresholdSeconds: anInteger [
 ]
 
 { #category : 'accessing' }
-AbSettings >> stallMonitoringIntervalSeconds [
+AbSettings >> monitoringIntervalSeconds [
 
 	^ self
-		  at: #stallMonitoringIntervalSeconds
-		  ifAbsent: [ self defaultStallMonitoringIntervalSeconds ]
+		  at: #monitoringIntervalSeconds
+		  ifAbsent: [ self defaultMonitoringIntervalSeconds ]
+]
+
+{ #category : 'accessing' }
+AbSettings >> monitoringIntervalSeconds: anInteger [
+
+	self at: #monitoringIntervalSeconds put: anInteger
 ]
 
 { #category : 'accessing' }
 AbSettings >> stallMonitoringIntervalSeconds: anInteger [
+	"Kept so that an ab-settings.json saved before the rename to #monitoringIntervalSeconds keeps its value on load."
 
-	self at: #stallMonitoringIntervalSeconds put: anInteger
+	self monitoringIntervalSeconds: anInteger
 ]
 
 { #category : 'accessing-convenient' }

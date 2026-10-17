@@ -4,13 +4,15 @@ I am the crit review daemon for one topic's working directory.
 Responsibility:
 - I decide whether crit review is available, and why a start must be refused.
 - I start or reuse the detached crit daemon and report one system message plus one callback.
-- Before spawning, I ensure the working directory has a crit port no other running crit holds, creating .crit.config.json when it is missing.
+- Before spawning, I ensure the working directory has a crit port no other running crit holds, creating .crit.config.json when it is missing, and that it has AgenticBrowser's finish hooks, which write each Finish result to a file of AbCritReviewFinishResultsManager.
+- After every successful start I await the first finish: I delete the topic's stale result files and remember that the first result is still to be delivered. Later results reach the agent through crit itself.
 - I serialize all starts, across directories, so overlapping starts spawn once and never pick the same port.
 - I never stop crit, and I never signal to my caller.
 
 Collaborators:
 - AbTopic: I read its working directory, status, and logger, and I post the review message on it.
-- AbCritConfigFile: I ask it to ensure the port before spawning, and read the port through one cached instance.
+- AbCritConfigFile: I ask it to ensure the port before spawning, and read the port through one cached instance. AbCritReviewFinishResultsManager writes the finish hooks through it.
+- AbCritReviewFinishResultsManager: I ask it to ensure the finish hooks before spawning, and to delete my topic's result files when a start succeeds.
 - AbTopicSession: It caches me, one per topic.
 - AbSettings: I read #useCrit and the crit log directory.
 - AbStubCritDaemon: Tests override #runShellCommand: so no process is spawned.
@@ -20,11 +22,13 @@ Public API and Key Messages:
 - #isAvailable / #unavailableReason / #refusalReasonOnStart - Whether the control is shown (useCrit and .git) and whether a start may proceed.
 - #isDaemonRunning - Whether crit status reports a running daemon; signals an Error when the status cannot be read.
 - #startReviewForHost:ifStarted:ifFailed: - Synchronous start. ifStarted: receives the url and port. ifFailed: receives the reason.
+- #isAwaitingFirstFinish - Whether the first Finish result since the last successful start is still to be delivered.
 
 Internal Representation:
 - topic - The AbTopic whose working directory crit serves.
 - configFile - Lazily created AbCritConfigFile for the working directory; reset before ensuring the port so the file is read again.
 - pollAttemptsUntilRunning / pollDelayUntilRunning - How many status checks to make, and the pause between them. Defaults are 20 and 500 ms.
+- awaitingFirstFinish - True from a successful start until the first result is delivered. Not persisted (AbTopicSession excludes me from Fuel), so after an image restart the user starts the review again.
 - launchMutex (class) - One Mutex for all directories, covering status, port selection, spawn, and poll.
 "
 Class {
@@ -34,7 +38,8 @@ Class {
 		'topic',
 		'configFile',
 		'pollAttemptsUntilRunning',
-		'pollDelayUntilRunning'
+		'pollDelayUntilRunning',
+		'awaitingFirstFinish'
 	],
 	#classInstVars : [
 		'launchMutex'
@@ -114,6 +119,24 @@ AbCritDaemon >> pollDelayUntilRunning: aDuration [
 	pollDelayUntilRunning := aDuration
 ]
 
+{ #category : 'accessing' }
+AbCritDaemon >> awaitingFirstFinish [
+
+	^ awaitingFirstFinish ifNil: [ false ]
+]
+
+{ #category : 'accessing' }
+AbCritDaemon >> awaitingFirstFinish: aBoolean [
+
+	awaitingFirstFinish := aBoolean
+]
+
+{ #category : 'testing' }
+AbCritDaemon >> isAwaitingFirstFinish [
+
+	^ self awaitingFirstFinish
+]
+
 { #category : 'testing' }
 AbCritDaemon >> isAvailable [
 
@@ -155,11 +178,14 @@ AbCritDaemon >> launchForHost: aHostString ifStarted: started ifFailed: failed [
 	running ifNil: [ ^ self fail: 'crit status failed (is crit on PATH?)' with: failed ].
 	running ifFalse: [
 		self ensurePort.
+		self ensureFinishHooks.
 		[ self spawn ] on: Error do: [ :ex | ^ self fail: ex messageText with: failed ].
 		self waitUntilRunning ifFalse: [
 			^ self fail: self startTimeoutReason with: failed ] ].
+	self awaitFirstFinish.
 	url := self reviewUrlForHost: aHostString.
-	self topic addSystemMessage: 'Crit review: ' , url.
+	self topic addSystemMessage: 'Crit review: ' , url
+		, ' (crit asks once to trust this project''s hooks when you first press Finish)'.
 	started value: url value: self configFile port
 ]
 
@@ -168,6 +194,21 @@ AbCritDaemon >> ensurePort [
 
 	self configFile: nil.
 	AbCritConfigFile ensurePortIn: self topic workingDirectory
+]
+
+{ #category : 'private' }
+AbCritDaemon >> ensureFinishHooks [
+
+	(self reviewFinishResultsManager ensureFinishHooksFor: self) ifFalse: [
+		self topic addSystemMessage:
+			'Crit review: automatic delivery of the first review result is off, because .crit.config.json already defines its own on_finish hook' ]
+]
+
+{ #category : 'private' }
+AbCritDaemon >> awaitFirstFinish [
+
+	self reviewFinishResultsManager deleteFilesFor: self topic.
+	self awaitingFirstFinish: true
 ]
 
 { #category : 'private' }
@@ -193,6 +234,12 @@ AbCritDaemon >> withLaunchMutexDo: aBlock [
 AbCritDaemon >> directory [
 
 	^ self topic workingDirectory path
+]
+
+{ #category : 'accessing' }
+AbCritDaemon >> reviewFinishResultsManager [
+
+	^ AbCritReviewFinishResultsManager default
 ]
 
 { #category : 'accessing' }
@@ -222,7 +269,7 @@ AbCritDaemon >> spawn [
 
 	self logFile parent ensureCreateDirectory.
 	self runShellCommand: 'crit --no-open --host 0.0.0.0 --allow-unauthenticated-network >> '
-		, (self shellQuoted: self logFile fullName) , ' 2>&1 &'
+		, self logFile fullName shellQuoted , ' 2>&1 &'
 ]
 
 { #category : 'private' }
@@ -256,18 +303,6 @@ AbCritDaemon >> fail: aReasonString with: aReasonBlock [
 AbCritDaemon >> logFile [
 
 	^ AbSettings defaultAgenticBrowserRootDirectory / 'crit-logs' / (self directory basename , '.log')
-]
-
-{ #category : 'private' }
-AbCritDaemon >> shellQuoted: aString [
-
-	^ String streamContents: [ :stream |
-		  stream nextPut: $'.
-		  aString do: [ :char |
-			  char = $'
-				  ifTrue: [ stream nextPutAll: '''\''''' ]
-				  ifFalse: [ stream nextPut: char ] ].
-		  stream nextPut: $' ]
 ]
 
 { #category : 'command execution' }

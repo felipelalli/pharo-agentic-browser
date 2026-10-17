@@ -1435,7 +1435,7 @@ AbTopicManagerRippleTest >> testStartCritPushesStartedUrl [
 		self assert: (body at: 'topicId') equals: topic topicId.
 		self assert: (body at: 'port') equals: 9080.
 		self assert: (body at: 'url') equals: 'http://192.168.1.10:9080/'.
-		self assert: topic messages last text equals: 'Crit review: http://192.168.1.10:9080/' ]
+		self assert: topic messages last text equals: 'Crit review: http://192.168.1.10:9080/ (crit asks once to trust this project''s hooks when you first press Finish)' ]
 ]
 
 { #category : 'tests' }

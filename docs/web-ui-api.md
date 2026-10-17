@@ -406,7 +406,7 @@ Returns error `10006` if the save operation fails.
 
 ### `request /crit/start`
 
-Starts a crit diff review for the topic's working directory, or reuses the daemon already running there. Before it starts a new daemon, the server picks the port. It keeps the port in `.crit.config.json` unless another topic's running crit holds it. Otherwise it writes the lowest free port in `critPortRange`, and creates the file if it is missing. The reply comes right after validation passes; it does not wait for crit to start. The result is pushed later to this connection only.
+Starts a crit diff review for the topic's working directory, or reuses the daemon already running there. Before it starts a new daemon, the server picks the port. It keeps the port in `.crit.config.json` unless another topic's running crit holds it. Otherwise it writes the lowest free port in `critPortRange`, and creates the file if it is missing. It also adds AgenticBrowser's `on_finish_unresolved` / `on_finish_approved` hooks to that file, unless the file already defines its own (see the README section "Code Review with crit"). The reply comes right after validation passes; it does not wait for crit to start. The result is pushed later to this connection only.
 
 **Request body:**
 ```json

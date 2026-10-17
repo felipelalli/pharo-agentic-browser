@@ -2,7 +2,8 @@ Class {
 	#name : 'AbCritConfigFileTest',
 	#superclass : 'AbTestCase',
 	#instVars : [
-		'root'
+		'root',
+		'finishHooksTopic'
 	],
 	#category : 'AgenticBrowser-Tests',
 	#package : 'AgenticBrowser-Tests'
@@ -14,7 +15,8 @@ AbCritConfigFileTest >> setUp [
 	super setUp.
 	AbSettings initialize.
 	root := FileLocator temp / ('ab-crit-cfg-' , UUID new asString36).
-	root ensureCreateDirectory
+	root ensureCreateDirectory.
+	finishHooksTopic := AbTopic new
 ]
 
 { #category : 'running' }
@@ -283,4 +285,79 @@ AbCritConfigFileTest >> testEnsurePortSignalsExhaustedRangeWithoutWriting [
 	parsed := STONJSON fromString: (dir / '.crit.config.json') contents.
 	self assert: (parsed at: 'port') equals: 0.
 	self assert: (parsed at: 'extra') equals: 'stay'
+]
+
+{ #category : 'private' }
+AbCritConfigFileTest >> finishHooks [
+
+	^ AbCritReviewFinishResultsManager default prepareFinishHooksFor: finishHooksTopic
+]
+
+{ #category : 'private' }
+AbCritConfigFileTest >> parsedConfigIn: aDirectory [
+
+	^ STONJSON fromString: (aDirectory / '.crit.config.json') contents
+]
+
+{ #category : 'tests' }
+AbCritConfigFileTest >> testEnsureFinishHooksCreatesFileFromDefaultsWhenMissing [
+
+	| parsed |
+	self assert: ((AbCritConfigFile in: root) ensureFinishHooksFor: finishHooksTopic).
+	parsed := self parsedConfigIn: root.
+	self assert: (parsed at: 'hooks') equals: self finishHooks.
+	self assert: (parsed at: 'no_open')
+]
+
+{ #category : 'tests' }
+AbCritConfigFileTest >> testEnsureFinishHooksPreservesOtherKeys [
+
+	| parsed |
+	self writeJson: (Dictionary new
+		at: 'port' put: 9081;
+		at: 'ignore_patterns' put: #( 'keep' );
+		at: 'hooks' put: (Dictionary new at: 'on_review_start' put: 'inline:true'; yourself);
+		yourself) in: root.
+	self assert: ((AbCritConfigFile in: root) ensureFinishHooksFor: finishHooksTopic).
+	parsed := self parsedConfigIn: root.
+	self assert: (parsed at: 'port') equals: 9081.
+	self assert: (parsed at: 'ignore_patterns') equals: #( 'keep' ).
+	self assert: ((parsed at: 'hooks') at: 'on_review_start') equals: 'inline:true'.
+	self assert: ((parsed at: 'hooks') at: 'on_finish_unresolved') equals: (self finishHooks at: 'on_finish_unresolved')
+]
+
+{ #category : 'tests' }
+AbCritConfigFileTest >> testEnsureFinishHooksLeavesFileUntouchedWhenHooksAreCurrent [
+
+	| file before |
+	(AbCritConfigFile in: root) ensureFinishHooksFor: finishHooksTopic.
+	file := root / '.crit.config.json'.
+	file writeStreamDo: [ :stream | stream nextPutAll: (STONJSON toString: (self parsedConfigIn: root)) ].
+	before := file contents.
+	self assert: ((AbCritConfigFile in: root) ensureFinishHooksFor: finishHooksTopic).
+	self assert: file contents equals: before
+]
+
+{ #category : 'tests' }
+AbCritConfigFileTest >> testEnsureFinishHooksReplacesOurHookFromAnotherRoot [
+
+	self writeJson: (Dictionary new
+		at: 'hooks' put: (Dictionary new
+			at: 'on_finish_unresolved' put: 'inline:cat > ''/old/crit-results/t-unresolved.json''';
+			yourself);
+		yourself) in: root.
+	self assert: ((AbCritConfigFile in: root) ensureFinishHooksFor: finishHooksTopic).
+	self assert: ((self parsedConfigIn: root) at: 'hooks') equals: self finishHooks
+]
+
+{ #category : 'tests' }
+AbCritConfigFileTest >> testEnsureFinishHooksKeepsUserDefinedFinishHook [
+
+	| userHooks |
+	userHooks := Dictionary new
+		at: 'on_finish_approved' put: 'inline:echo approved >> ~/finishes.log';
+		yourself.
+	self writeJson: (Dictionary new at: 'hooks' put: userHooks; yourself) in: root.
+	self deny: ((AbCritConfigFile in: root) ensureFinishHooksFor: finishHooksTopic).
+	self assert: ((self parsedConfigIn: root) at: 'hooks') equals: userHooks
 ]
