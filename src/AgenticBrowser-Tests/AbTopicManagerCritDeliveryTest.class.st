@@ -25,7 +25,7 @@ AbTopicManagerCritDeliveryTest >> setUp [
 AbTopicManagerCritDeliveryTest >> tearDown [
 
 	resultTopicIds do: [ :topicId |
-		(AbCritFinishResult filesForTopicId: topicId) do: [ :file | file ensureDelete ] ].
+		(AbCritReviewFinishResultsManager default filesForTopicId: topicId) do: [ :file | file ensureDelete ] ].
 	AbSettings initialize.
 	super tearDown
 ]
@@ -41,7 +41,7 @@ AbTopicManagerCritDeliveryTest >> writeResult: aKindSymbol containing: aString f
 
 	| file |
 	resultTopicIds add: aTopicId.
-	file := AbCritFinishResult fileForTopicId: aTopicId kind: aKindSymbol.
+	file := AbCritReviewFinishResultsManager default fileForTopicId: aTopicId kind: aKindSymbol.
 	file parent ensureCreateDirectory.
 	file writeStreamDo: [ :stream | stream nextPutAll: aString ].
 	^ file

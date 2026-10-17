@@ -4,15 +4,15 @@ I am the crit review daemon for one topic's working directory.
 Responsibility:
 - I decide whether crit review is available, and why a start must be refused.
 - I start or reuse the detached crit daemon and report one system message plus one callback.
-- Before spawning, I ensure the working directory has a crit port no other running crit holds, creating .crit.config.json when it is missing, and that it has AgenticBrowser's finish hooks, which write each Finish result to an AbCritFinishResult file.
+- Before spawning, I ensure the working directory has a crit port no other running crit holds, creating .crit.config.json when it is missing, and that it has AgenticBrowser's finish hooks, which write each Finish result to a file of AbCritReviewFinishResultsManager.
 - After every successful start I await the first finish: I delete the topic's stale result files and remember that the first result is still to be delivered. Later results reach the agent through crit itself.
 - I serialize all starts, across directories, so overlapping starts spawn once and never pick the same port.
 - I never stop crit, and I never signal to my caller.
 
 Collaborators:
 - AbTopic: I read its working directory, status, and logger, and I post the review message on it.
-- AbCritConfigFile: I ask it to ensure the port and the finish hooks before spawning, and read the port through one cached instance.
-- AbCritFinishResult: I build the finish hook commands from its file locations, and delete its files for my topic when a start succeeds.
+- AbCritConfigFile: I ask it to ensure the port before spawning, and read the port through one cached instance. AbCritReviewFinishResultsManager writes the finish hooks through it.
+- AbCritReviewFinishResultsManager: I ask it to ensure the finish hooks before spawning, and to delete my topic's result files when a start succeeds.
 - AbTopicSession: It caches me, one per topic.
 - AbSettings: I read #useCrit and the crit log directory.
 - AbStubCritDaemon: Tests override #runShellCommand: so no process is spawned.
@@ -199,28 +199,15 @@ AbCritDaemon >> ensurePort [
 { #category : 'private' }
 AbCritDaemon >> ensureFinishHooks [
 
-	AbCritFinishResult directory ensureCreateDirectory.
-	(self configFile ensureFinishHooks: self finishHooks) ifFalse: [
+	(self reviewFinishResultsManager ensureFinishHooksFor: self) ifFalse: [
 		self topic addSystemMessage:
 			'Crit review: automatic delivery of the first review result is off, because .crit.config.json already defines its own on_finish hook' ]
 ]
 
 { #category : 'private' }
-AbCritDaemon >> finishHooks [
-
-	^ AbCritFinishResult kinds
-		  inject: Dictionary new
-		  into: [ :hooks :kind |
-			  hooks
-				  at: 'on_finish_' , kind
-				  put: 'inline:cat > ' , (self shellQuoted: (AbCritFinishResult fileForTopicId: self topic topicId kind: kind) fullName);
-				  yourself ]
-]
-
-{ #category : 'private' }
 AbCritDaemon >> awaitFirstFinish [
 
-	(AbCritFinishResult filesForTopicId: self topic topicId) do: [ :file | file ensureDelete ].
+	self reviewFinishResultsManager deleteFilesFor: self topic.
 	self awaitingFirstFinish: true
 ]
 
@@ -250,6 +237,12 @@ AbCritDaemon >> directory [
 ]
 
 { #category : 'accessing' }
+AbCritDaemon >> reviewFinishResultsManager [
+
+	^ AbCritReviewFinishResultsManager default
+]
+
+{ #category : 'accessing' }
 AbCritDaemon >> configFile [
 
 	^ configFile ifNil: [ configFile := AbCritConfigFile in: self directory ]
@@ -276,7 +269,7 @@ AbCritDaemon >> spawn [
 
 	self logFile parent ensureCreateDirectory.
 	self runShellCommand: 'crit --no-open --host 0.0.0.0 --allow-unauthenticated-network >> '
-		, (self shellQuoted: self logFile fullName) , ' 2>&1 &'
+		, self logFile fullName shellQuoted , ' 2>&1 &'
 ]
 
 { #category : 'private' }
@@ -310,18 +303,6 @@ AbCritDaemon >> fail: aReasonString with: aReasonBlock [
 AbCritDaemon >> logFile [
 
 	^ AbSettings defaultAgenticBrowserRootDirectory / 'crit-logs' / (self directory basename , '.log')
-]
-
-{ #category : 'private' }
-AbCritDaemon >> shellQuoted: aString [
-
-	^ String streamContents: [ :stream |
-		  stream nextPut: $'.
-		  aString do: [ :char |
-			  char = $'
-				  ifTrue: [ stream nextPutAll: '''\''''' ]
-				  ifFalse: [ stream nextPut: char ] ].
-		  stream nextPut: $' ]
 ]
 
 { #category : 'command execution' }

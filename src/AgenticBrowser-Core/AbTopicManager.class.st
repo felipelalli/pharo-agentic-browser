@@ -19,7 +19,9 @@ Collaborators:
 - AbTopicAdded: I announce it when a new topic is added.
 - AbTopicRemoved: I announce it when a topic is removed.
 - FLSerializer / FLMaterializer: I use the Fuel framework for binary serialization.
-- AbCritFinishResult: I list pending crit review results, send their prompt, and delete them.
+- AbCritReviewFinishResultsManager: I ask it for the pending crit review results.
+- AbCritReviewFinishResult: I send its prompt to its topic and delete it.
+- AbSettings: I read #useCrit and #monitoringIntervalSeconds through #settings.
 - AbCritDaemon: I ask each topic's daemon whether it awaits its first finish, and clear that once delivered.
 
 Public API and Key Messages:
@@ -32,8 +34,7 @@ Public API and Key Messages:
 - #topicForWorkingDirectoryPath: - Look up a topic by its working directory path.
 - #startMonitoring / #stopMonitoring - Start or stop the background monitoring process that runs the periodic topic checks.
 - #resumeStalledTopics - Send each stalled topic's goal resume prompt once, synchronously.
-- #deliverCritFinishResults - For each pending AbCritFinishResult whose topic's crit daemon awaits its first finish: report an approval as a system message, or send the unresolved prompt once the topic is #endTurn or #initial. Results of unknown topics and later rounds are deleted. Does nothing while useCrit is false.
-- #topicWithId: - Look up a topic by topicId, or nil.
+- #deliverCritFinishResults - For each pending AbCritReviewFinishResult whose topic's crit daemon awaits its first finish: report an approval as a system message, or send the unresolved prompt once the topic is #endTurn or #initial. Results of unknown topics and later rounds are deleted. Does nothing while useCrit is false.
 
 Internal Representation:
 - topics - Dictionary keyed by topicId String, valued by AbTopic.
@@ -327,14 +328,14 @@ AbTopicManager >> topicNamed: aString [
 ]
 
 { #category : 'accessing' }
-AbTopicManager >> topics [
-	^ topics values asArray
+AbTopicManager >> settings [
+
+	^ AbSettings default
 ]
 
 { #category : 'accessing' }
-AbTopicManager >> topicWithId: aTopicIdString [
-
-	^ topics at: aTopicIdString ifAbsent: [ nil ]
+AbTopicManager >> topics [
+	^ topics values asArray
 ]
 
 { #category : 'accessing' }
@@ -373,39 +374,39 @@ AbTopicManager >> resumeStalledTopics [
 { #category : 'operations' }
 AbTopicManager >> deliverCritFinishResults [
 
-	AbSettings default useCrit ifFalse: [ ^ self ].
-	AbCritFinishResult pendingResults do: [ :result |
+	self settings useCrit ifFalse: [ ^ self ].
+	AbCritReviewFinishResultsManager default results do: [ :result |
 		[ self deliverCritFinishResult: result ]
 			on: Error
 			do: [ :e | self logCritFinishResult: result failure: e ] ]
 ]
 
 { #category : 'private' }
-AbTopicManager >> deliverCritFinishResult: anAbCritFinishResult [
+AbTopicManager >> deliverCritFinishResult: anAbCritReviewFinishResult [
 
 	| topic daemon |
-	topic := (self topicWithId: anAbCritFinishResult topicId) ifNil: [
-		Transcript crShow: 'AbTopicManager: discarding crit result of unknown topic ' , anAbCritFinishResult topicId.
-		^ anAbCritFinishResult delete ].
+	topic := (self at: anAbCritReviewFinishResult topicId) ifNil: [
+		Transcript crShow: 'AbTopicManager: discarding crit result of unknown topic ' , anAbCritReviewFinishResult topicId.
+		^ anAbCritReviewFinishResult delete ].
 	daemon := topic critDaemon.
 	daemon isAwaitingFirstFinish ifFalse: [
 		topic logger info: 'deliverCritFinishResults: discarding a later crit result'.
-		^ anAbCritFinishResult delete ].
-	anAbCritFinishResult isApproved
+		^ anAbCritReviewFinishResult delete ].
+	anAbCritReviewFinishResult isApproved
 		ifTrue: [ topic addSystemMessage: 'Crit review approved.' ]
 		ifFalse: [
 			(topic isEndTurn or: [ topic isInitial ]) ifFalse: [ ^ self ].
-			topic sendPrompt: anAbCritFinishResult prompt ].
-	anAbCritFinishResult delete.
+			topic sendPrompt: anAbCritReviewFinishResult prompt ].
+	anAbCritReviewFinishResult delete.
 	daemon awaitingFirstFinish: false
 ]
 
 { #category : 'private' }
-AbTopicManager >> logCritFinishResult: anAbCritFinishResult failure: anError [
+AbTopicManager >> logCritFinishResult: anAbCritReviewFinishResult failure: anError [
 
 	| text |
-	text := 'deliverCritFinishResults: will retry ' , anAbCritFinishResult file basename , ' - ' , anError messageText.
-	(self topicWithId: anAbCritFinishResult topicId)
+	text := 'deliverCritFinishResults: will retry ' , anAbCritReviewFinishResult file basename , ' - ' , anError messageText.
+	(self at: anAbCritReviewFinishResult topicId)
 		ifNil: [ Transcript crShow: 'AbTopicManager: ' , text ]
 		ifNotNil: [ :topic | topic logger warn: text ]
 ]
@@ -414,7 +415,7 @@ AbTopicManager >> logCritFinishResult: anAbCritFinishResult failure: anError [
 AbTopicManager >> runMonitoringLoop [
 
 	[ monitoringProcess notNil ] whileTrue: [
-		(Delay forSeconds: AbSettings default monitoringIntervalSeconds) wait.
+		(Delay forSeconds: self settings monitoringIntervalSeconds) wait.
 		self resumeStalledTopics.
 		self deliverCritFinishResults ]
 ]

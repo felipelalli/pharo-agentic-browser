@@ -501,11 +501,11 @@ AbCritDaemonTest >> testStartReviewSpawnWritesFinishHooksForTopic [
 	topic := self readyTopicNamed: 'hooks'.
 	self startSpawning: (self daemonFor: topic).
 	hooks := (STONJSON fromString: (topic workingDirectory path / '.crit.config.json') contents) at: 'hooks'.
-	AbCritFinishResult kinds do: [ :kind |
+	AbCritReviewFinishResultsManager default kinds do: [ :kind |
 		self
 			assert: (hooks at: 'on_finish_' , kind)
-			equals: 'inline:cat > ''' , (AbCritFinishResult fileForTopicId: topic topicId kind: kind) fullName , '''' ].
-	self assert: AbCritFinishResult directory exists
+			equals: 'inline:cat > ''' , (AbCritReviewFinishResultsManager default fileForTopicId: topic topicId kind: kind) fullName , '''' ].
+	self assert: AbCritReviewFinishResultsManager default directory exists
 ]
 
 { #category : 'tests' }
@@ -529,8 +529,8 @@ AbCritDaemonTest >> testStartReviewAwaitsFirstFinishAndDeletesStaleResults [
 	| topic daemon files |
 	topic := self readyTopicNamed: 'await'.
 	daemon := self daemonFor: topic.
-	files := AbCritFinishResult filesForTopicId: topic topicId.
-	AbCritFinishResult directory ensureCreateDirectory.
+	files := AbCritReviewFinishResultsManager default filesForTopicId: topic topicId.
+	AbCritReviewFinishResultsManager default directory ensureCreateDirectory.
 	[
 	files do: [ :file | file ensureCreateFile ].
 	daemon statusReplies add: '{"daemon":{"running":true}}'.
