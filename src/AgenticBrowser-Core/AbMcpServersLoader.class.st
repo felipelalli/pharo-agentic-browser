@@ -24,7 +24,7 @@ AbMcpServersLoader >> addSmalltalkInteropMcpTo: aDict [
 		args: #( '--from' 'git+https://github.com/mumez/smalltalk-interop-mcp-server.git'
 			'smalltalk-interop-mcp-server' );
 		yourself.
-	server addEnvNamed: 'SIS_PORT' value: '8086'.
+	server addEnvNamed: 'SIS_PORT' value: SisSettings default port asString.
 	aDict at: server name put: server asDictionary
 ]
 
