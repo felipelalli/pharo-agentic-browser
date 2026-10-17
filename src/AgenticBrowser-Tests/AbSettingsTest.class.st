@@ -312,38 +312,33 @@ AbSettingsTest >> testSaveAfterLoadingOldIntervalKeyWritesOnlyNewKey [
 { #category : 'tests' }
 AbSettingsTest >> testSaveFullToReplacesExistingLongerFileCompletely [
 
-	| file settings dict |
-	file := FileLocator temp / ('ab-settings-' , UUID new asString36) / 'ab-settings.json'.
-	file parent ensureCreateDirectory.
-	[
-		file writeStreamDo: [ :stream |
-			stream nextPutAll: (String new: 40000 withAll: $x).
-			stream nextPutAll: 'TRAILING-OLD-CONTENT' ].
+	| settings dict |
+	self withTempDirectoryDo: [ :root |
+		| file |
+		file := root / 'ab-settings.json'.
+		self writeLongerFile: file marked: 'TRAILING-OLD-CONTENT'.
 		settings := AbSettings new.
 		settings monitoringIntervalSeconds: 15.
 		settings saveFullTo: file.
 		self deny: (file contents includesSubstring: 'TRAILING-OLD-CONTENT').
 		dict := STONJSON fromString: file contents.
-		self assert: (dict at: 'monitoringIntervalSeconds') equals: 15
-	] ensure: [ file parent exists ifTrue: [ file parent deleteAll ] ]
+		self assert: (dict at: 'monitoringIntervalSeconds') equals: 15 ]
 ]
 
 { #category : 'tests' }
 AbSettingsTest >> testSaveFullToRestoresExistingFileWhenWritingFails [
 
-	| file settings original |
-	file := FileLocator temp / ('ab-settings-' , UUID new asString36) / 'ab-settings.json'.
-	file parent ensureCreateDirectory.
-	[
-		original := '{"monitoringIntervalSeconds": 30}'.
+	| original |
+	original := '{"monitoringIntervalSeconds": 30}'.
+	self withTempDirectoryDo: [ :root |
+		| file |
+		file := root / 'ab-settings.json'.
 		file writeStreamDo: [ :stream | stream nextPutAll: original ].
-		settings := AbSettings new.
-		"MessageSend is not JSON, so STONJSON signals inside the write."
-		settings monitoringIntervalSeconds: (MessageSend receiver: nil selector: #foo).
-		self should: [ settings saveFullTo: file ] raise: Error.
+		self
+			should: [ AbSettingsFailingJson new saveFullTo: file ]
+			raise: Error.
 		self assert: file exists.
-		self assert: file contents equals: original
-	] ensure: [ file parent exists ifTrue: [ file parent deleteAll ] ]
+		self assert: file contents equals: original ]
 ]
 
 { #category : 'tests' }

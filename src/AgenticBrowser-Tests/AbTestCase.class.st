@@ -81,6 +81,25 @@ AbTestCase >> modelOptionWithCurrentValue: aString [
 ]
 
 { #category : 'private' }
+AbTestCase >> withTempDirectoryDo: aBlock [
+
+	| root |
+	root := FileLocator temp / ('ab-test-' , UUID new asString36).
+	root ensureCreateDirectory.
+	^ [ aBlock value: root ] ensure: [
+		root exists ifTrue: [ root deleteAll ] ]
+]
+
+{ #category : 'private' }
+AbTestCase >> writeLongerFile: aFileReference marked: aMarker [
+
+	aFileReference parent ensureCreateDirectory.
+	aFileReference writeStreamDo: [ :stream |
+		stream nextPutAll: (String new: 40000 withAll: $X).
+		stream nextPutAll: aMarker ]
+]
+
+{ #category : 'private' }
 AbTestCase >> modeOptionWithCurrentValue: aString [
 
 	| modeOption |
