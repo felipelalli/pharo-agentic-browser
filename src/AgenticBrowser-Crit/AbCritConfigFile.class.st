@@ -43,8 +43,8 @@ Class {
 	#classInstVars : [
 		'topicManager'
 	],
-	#category : 'AgenticBrowser-Core',
-	#package : 'AgenticBrowser-Core'
+	#category : 'AgenticBrowser-Crit',
+	#package : 'AgenticBrowser-Crit'
 }
 
 { #category : 'instance creation' }
