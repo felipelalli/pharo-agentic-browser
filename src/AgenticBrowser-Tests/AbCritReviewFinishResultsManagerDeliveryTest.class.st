@@ -1,8 +1,8 @@
 Class {
-	#name : 'AbTopicManagerCritDeliveryTest',
+	#name : 'AbCritReviewFinishResultsManagerDeliveryTest',
 	#superclass : 'AbTestCase',
 	#instVars : [
-		'manager',
+		'topicManager',
 		'sentPrompts',
 		'resultTopicIds'
 	],
@@ -11,18 +11,18 @@ Class {
 }
 
 { #category : 'running' }
-AbTopicManagerCritDeliveryTest >> setUp [
+AbCritReviewFinishResultsManagerDeliveryTest >> setUp [
 
 	super setUp.
 	AbSettings initialize.
 	AbSettings default useCrit: true.
-	manager := AbTopicManager forTest.
+	topicManager := AbTopicManager forTest.
 	sentPrompts := OrderedCollection new.
 	resultTopicIds := OrderedCollection new
 ]
 
 { #category : 'running' }
-AbTopicManagerCritDeliveryTest >> tearDown [
+AbCritReviewFinishResultsManagerDeliveryTest >> tearDown [
 
 	resultTopicIds do: [ :topicId |
 		(AbCritReviewFinishResultsManager default filesForTopicId: topicId) do: [ :file | file ensureDelete ] ].
@@ -31,13 +31,19 @@ AbTopicManagerCritDeliveryTest >> tearDown [
 ]
 
 { #category : 'private' }
-AbTopicManagerCritDeliveryTest >> unresolvedPayload [
+AbCritReviewFinishResultsManagerDeliveryTest >> deliverResults [
+
+	AbCritReviewFinishResultsManager default deliverResultsToTopicsIn: topicManager
+]
+
+{ #category : 'private' }
+AbCritReviewFinishResultsManagerDeliveryTest >> unresolvedPayload [
 
 	^ '{"unresolved_count":1,"comments_unresolved_json":[{"id":"c_1","body":"please fix"}],"next_round_cmd":"crit --session s1"}'
 ]
 
 { #category : 'private' }
-AbTopicManagerCritDeliveryTest >> writeResult: aKindSymbol containing: aString forTopicId: aTopicId [
+AbCritReviewFinishResultsManagerDeliveryTest >> writeResult: aKindSymbol containing: aString forTopicId: aTopicId [
 
 	| file |
 	resultTopicIds add: aTopicId.
@@ -48,44 +54,44 @@ AbTopicManagerCritDeliveryTest >> writeResult: aKindSymbol containing: aString f
 ]
 
 { #category : 'private' }
-AbTopicManagerCritDeliveryTest >> writeUnresolvedFor: aTopic [
+AbCritReviewFinishResultsManagerDeliveryTest >> writeUnresolvedFor: aTopic [
 
 	^ self writeResult: #unresolved containing: self unresolvedPayload forTopicId: aTopic topicId
 ]
 
 { #category : 'private' }
-AbTopicManagerCritDeliveryTest >> topicAwaitingFirstFinish: aBoolean events: anEventCollection [
+AbCritReviewFinishResultsManagerDeliveryTest >> topicAwaitingFirstFinish: aBoolean events: anEventCollection [
 
 	| topic |
 	topic := AbMockTopicNoPromptSend new.
 	topic onSendBlock: [ :text :resources | sentPrompts add: text ].
 	anEventCollection do: [ :event | topic stateMachine handleEvent: event ].
 	topic critDaemon awaitingFirstFinish: aBoolean.
-	manager addTopic: topic.
+	topicManager addTopic: topic.
 	^ topic
 ]
 
 { #category : 'tests' }
-AbTopicManagerCritDeliveryTest >> testDoesNothingWhenUseCritIsFalse [
+AbCritReviewFinishResultsManagerDeliveryTest >> testDoesNothingWhenUseCritIsFalse [
 
 	| topic file |
 	topic := self topicAwaitingFirstFinish: true events: #( #promptSent #turnEnded ).
 	file := self writeUnresolvedFor: topic.
 	AbSettings default useCrit: false.
-	manager deliverCritFinishResults.
+	self deliverResults.
 	self assert: sentPrompts isEmpty.
 	self assert: file exists.
 	self assert: topic critDaemon isAwaitingFirstFinish
 ]
 
 { #category : 'tests' }
-AbTopicManagerCritDeliveryTest >> testSendsPromptToIdleAwaitingTopics [
+AbCritReviewFinishResultsManagerDeliveryTest >> testSendsPromptToIdleAwaitingTopics [
 
 	| endTurnTopic initialTopic files |
 	endTurnTopic := self topicAwaitingFirstFinish: true events: #( #promptSent #turnEnded ).
 	initialTopic := self topicAwaitingFirstFinish: true events: #(  ).
 	files := { endTurnTopic. initialTopic } collect: [ :each | self writeUnresolvedFor: each ].
-	manager deliverCritFinishResults.
+	self deliverResults.
 	self assert: sentPrompts size equals: 2.
 	self assert: (sentPrompts allSatisfy: [ :each | each beginsWith: 'The review finished with 1 unresolved comment.' ]).
 	self assert: (files noneSatisfy: [ :each | each exists ]).
@@ -94,13 +100,13 @@ AbTopicManagerCritDeliveryTest >> testSendsPromptToIdleAwaitingTopics [
 ]
 
 { #category : 'tests' }
-AbTopicManagerCritDeliveryTest >> testKeepsResultWhileTopicIsBusy [
+AbCritReviewFinishResultsManagerDeliveryTest >> testKeepsResultWhileTopicIsBusy [
 
 	| workingTopic waitingTopic files |
 	workingTopic := self topicAwaitingFirstFinish: true events: #( #promptSent ).
 	waitingTopic := self topicAwaitingFirstFinish: true events: #( #permissionRequested ).
 	files := { workingTopic. waitingTopic } collect: [ :each | self writeUnresolvedFor: each ].
-	manager deliverCritFinishResults.
+	self deliverResults.
 	self assert: sentPrompts isEmpty.
 	self assert: (files allSatisfy: [ :each | each exists ]).
 	self assert: workingTopic critDaemon isAwaitingFirstFinish.
@@ -108,12 +114,12 @@ AbTopicManagerCritDeliveryTest >> testKeepsResultWhileTopicIsBusy [
 ]
 
 { #category : 'tests' }
-AbTopicManagerCritDeliveryTest >> testReportsFirstApprovalInAnyStatusWithoutPrompt [
+AbCritReviewFinishResultsManagerDeliveryTest >> testReportsFirstApprovalInAnyStatusWithoutPrompt [
 
 	| topic file |
 	topic := self topicAwaitingFirstFinish: true events: #( #promptSent ).
 	file := self writeResult: #approved containing: '{"approved":true}' forTopicId: topic topicId.
-	manager deliverCritFinishResults.
+	self deliverResults.
 	self assert: sentPrompts isEmpty.
 	self assert: topic messages last text equals: 'Crit review approved.'.
 	self deny: file exists.
@@ -121,37 +127,37 @@ AbTopicManagerCritDeliveryTest >> testReportsFirstApprovalInAnyStatusWithoutProm
 ]
 
 { #category : 'tests' }
-AbTopicManagerCritDeliveryTest >> testDiscardsResultOfTopicNotAwaitingFirstFinish [
+AbCritReviewFinishResultsManagerDeliveryTest >> testDiscardsResultOfTopicNotAwaitingFirstFinish [
 
 	| topic file |
 	topic := self topicAwaitingFirstFinish: false events: #( #promptSent #turnEnded ).
 	file := self writeUnresolvedFor: topic.
-	manager deliverCritFinishResults.
+	self deliverResults.
 	self assert: sentPrompts isEmpty.
 	self deny: file exists
 ]
 
 { #category : 'tests' }
-AbTopicManagerCritDeliveryTest >> testDiscardsResultOfUnknownTopic [
+AbCritReviewFinishResultsManagerDeliveryTest >> testDiscardsResultOfUnknownTopic [
 
 	| file |
 	file := self
 		        writeResult: #unresolved
 		        containing: self unresolvedPayload
 		        forTopicId: 'ab-test-unknown-' , UUID new asString36.
-	manager deliverCritFinishResults.
+	self deliverResults.
 	self deny: file exists
 ]
 
 { #category : 'tests' }
-AbTopicManagerCritDeliveryTest >> testKeepsUnreadableResultForRetryWithoutStoppingOthers [
+AbCritReviewFinishResultsManagerDeliveryTest >> testKeepsUnreadableResultForRetryWithoutStoppingOthers [
 
 	| brokenTopic goodTopic brokenFile |
 	brokenTopic := self topicAwaitingFirstFinish: true events: #( #promptSent #turnEnded ).
 	goodTopic := self topicAwaitingFirstFinish: true events: #( #promptSent #turnEnded ).
 	brokenFile := self writeResult: #unresolved containing: '{"unresolved_count":' forTopicId: brokenTopic topicId.
 	self writeUnresolvedFor: goodTopic.
-	manager deliverCritFinishResults.
+	self deliverResults.
 	self assert: brokenFile exists.
 	self assert: brokenTopic critDaemon isAwaitingFirstFinish.
 	self assert: sentPrompts size equals: 1.

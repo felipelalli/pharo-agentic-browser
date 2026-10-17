@@ -50,7 +50,11 @@ AbCritReviewFinishResultsManagerTest >> testIsSystemDefinedHookCommandRecognizes
 	| manager |
 	manager := AbCritReviewFinishResultsManager new.
 	self assert: (manager isSystemDefinedHookCommand: 'inline:cat > ''/old/root/agentic-browser/crit-results/abc-unresolved.json''').
+	self assert: (manager isSystemDefinedHookCommand: 'inline:cat > ' , '/r/it''s/crit-results/a-b-approved.json' shellQuoted).
 	self deny: (manager isSystemDefinedHookCommand: 'inline:echo done >> ~/finishes.log').
+	self deny: (manager isSystemDefinedHookCommand: 'inline:cat > ~/crit-results/out.json').
+	self deny: (manager isSystemDefinedHookCommand: 'inline:cat > ''/home/u/crit-results/out.json''').
+	self deny: (manager isSystemDefinedHookCommand: 'inline:cat > ''/x/crit-results/a-unresolved.json'' && notify').
 	self deny: (manager isSystemDefinedHookCommand: nil)
 ]
 

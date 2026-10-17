@@ -7,13 +7,16 @@ Responsibility:
 - I delete a topic's result files.
 - I recognize finish hook commands that write into my directory, so a hook from an earlier AgenticBrowser root is still treated as ours.
 - I list the result files in my directory as AbCritReviewFinishResult instances, reading the topicId and kind from each file name.
+- I deliver each pending result to its topic while the topic's crit daemon awaits its first finish: an approval becomes a system message, and an unresolved result becomes a prompt once the topic is #endTurn or #initial. Results of unknown topics and later rounds are deleted. A result that cannot be read (for example while crit's hook is still writing it) is logged and kept for the next delivery.
 
 Collaborators:
-- AbSettings: I read #defaultAgenticBrowserRootDirectory.
+- AbSettings: I read #defaultAgenticBrowserRootDirectory, and #useCrit through #settings.
 - AbCritReviewFinishResult: I create one per result file.
 - AbCritDaemon: It asks me to ensure its topic's finish hooks before spawning, and to delete its topic's stale files when a review starts. I read its #topic and #configFile.
 - AbCritConfigFile: I ask it to ensure a topic's finish hooks; it passes me its hooks and writes back the ones I answer.
-- AbTopicManager: It asks me for the pending results.
+- AbTopicManager: It asks me to deliver pending results to its topics, which I look up with its #at:.
+- AbTopic: I send it the prompt or system message, and read its status, logger, and crit daemon.
+- AbCritDaemon: I ask whether it awaits its first finish, and clear that once delivered.
 
 Public API and Key Messages:
 - AbCritReviewFinishResultsManager class>>default - The global singleton.
@@ -25,8 +28,9 @@ Public API and Key Messages:
 - #hooksWithFinishHooksFor:from: - A copy of the given hooks with a topic's finish hooks set; nil when one of those hook names already holds a user-defined command.
 - #ensureFinishHooksFor: - Create my directory and ensure the topic's finish hooks in the daemon's .crit.config.json; answer false when the file already defines its own on_finish hook.
 - #deleteFilesFor: - Delete a topic's result files.
-- #isSystemDefinedHookCommand: - Whether a hook command is one AgenticBrowser wrote, recognized by writing into my directory.
+- #isSystemDefinedHookCommand: - Whether a hook command is one AgenticBrowser wrote: exactly the cat into a <topicId>-<kind>.json under a crit-results directory, possibly of an earlier AgenticBrowser root.
 - #results - One AbCritReviewFinishResult per result file in the directory; empty when it does not exist.
+- #deliverResultsToTopicsIn: - Deliver the pending results to the topics of an AbTopicManager, as described above. Does nothing while useCrit is false.
 
 Internal Representation:
 - directory - Overrides the crit-results directory (tests use an in-memory one); nil means under the AgenticBrowser root directory.
@@ -148,19 +152,67 @@ AbCritReviewFinishResultsManager >> deleteFilesFor: aTopic [
 AbCritReviewFinishResultsManager >> isSystemDefinedHookCommand: aCommandString [
 
 	^ aCommandString isString and: [
-		  aCommandString includesSubstring: '/' , self directoryName , '/' ]
+		  aCommandString matchesRegex: 'inline\:cat > ''.*/' , self directoryName , '/[^/]+-(' , ('|' join: self kinds) , ')\.json''' ]
 ]
 
 { #category : 'accessing' }
 AbCritReviewFinishResultsManager >> results [
 
-	| suffix |
 	self directory exists ifFalse: [ ^ #(  ) ].
 	^ self kinds flatCollect: [ :kind |
+		  | suffix |
 		  suffix := self fileNameSuffixFor: kind.
 		  (self directory files select: [ :file | file basename endsWith: suffix ]) collect: [ :file |
 			  AbCritReviewFinishResult
 				  file: file
 				  topicId: (file basename allButLast: suffix size)
 				  kind: kind ] ]
+]
+
+{ #category : 'accessing' }
+AbCritReviewFinishResultsManager >> settings [
+
+	^ AbSettings default
+]
+
+{ #category : 'operations' }
+AbCritReviewFinishResultsManager >> deliverResultsToTopicsIn: anAbTopicManager [
+
+	self settings useCrit ifFalse: [ ^ self ].
+	self results do: [ :result |
+		| topic |
+		topic := anAbTopicManager at: result topicId.
+		[ self deliverResult: result toTopic: topic ]
+			on: Error
+			do: [ :e | self logRetryOfResult: result toTopic: topic failure: e ] ]
+]
+
+{ #category : 'private' }
+AbCritReviewFinishResultsManager >> deliverResult: anAbCritReviewFinishResult toTopic: aTopicOrNil [
+
+	| daemon |
+	aTopicOrNil ifNil: [
+		Transcript crShow: 'AbCritReviewFinishResultsManager: discarding crit result of unknown topic ' , anAbCritReviewFinishResult topicId.
+		^ anAbCritReviewFinishResult delete ].
+	daemon := aTopicOrNil critDaemon.
+	daemon isAwaitingFirstFinish ifFalse: [
+		aTopicOrNil logger info: 'deliverResultsToTopicsIn: discarding a later crit result'.
+		^ anAbCritReviewFinishResult delete ].
+	anAbCritReviewFinishResult isApproved
+		ifTrue: [ aTopicOrNil addSystemMessage: 'Crit review approved.' ]
+		ifFalse: [
+			(aTopicOrNil isEndTurn or: [ aTopicOrNil isInitial ]) ifFalse: [ ^ self ].
+			aTopicOrNil sendPrompt: anAbCritReviewFinishResult prompt ].
+	anAbCritReviewFinishResult delete.
+	daemon awaitingFirstFinish: false
+]
+
+{ #category : 'private' }
+AbCritReviewFinishResultsManager >> logRetryOfResult: anAbCritReviewFinishResult toTopic: aTopicOrNil failure: anError [
+
+	| text |
+	text := 'deliverResultsToTopicsIn: will retry ' , anAbCritReviewFinishResult file basename , ' - ' , anError messageText.
+	aTopicOrNil
+		ifNil: [ Transcript crShow: 'AbCritReviewFinishResultsManager: ' , text ]
+		ifNotNil: [ aTopicOrNil logger warn: text ]
 ]

@@ -19,10 +19,8 @@ Collaborators:
 - AbTopicAdded: I announce it when a new topic is added.
 - AbTopicRemoved: I announce it when a topic is removed.
 - FLSerializer / FLMaterializer: I use the Fuel framework for binary serialization.
-- AbCritReviewFinishResultsManager: I ask it for the pending crit review results.
-- AbCritReviewFinishResult: I send its prompt to its topic and delete it.
-- AbSettings: I read #useCrit and #monitoringIntervalSeconds through #settings.
-- AbCritDaemon: I ask each topic's daemon whether it awaits its first finish, and clear that once delivered.
+- AbCritReviewFinishResultsManager: I ask it to deliver pending crit review results to my topics; it looks them up with #at:.
+- AbSettings: I read #monitoringIntervalSeconds through #settings.
 
 Public API and Key Messages:
 - AbTopicManager class>>#default - Access the global singleton.
@@ -34,7 +32,7 @@ Public API and Key Messages:
 - #topicForWorkingDirectoryPath: - Look up a topic by its working directory path.
 - #startMonitoring / #stopMonitoring - Start or stop the background monitoring process that runs the periodic topic checks.
 - #resumeStalledTopics - Send each stalled topic's goal resume prompt once, synchronously.
-- #deliverCritFinishResults - For each pending AbCritReviewFinishResult whose topic's crit daemon awaits its first finish: report an approval as a system message, or send the unresolved prompt once the topic is #endTurn or #initial. Results of unknown topics and later rounds are deleted. Does nothing while useCrit is false.
+- #deliverCritFinishResults - Have AbCritReviewFinishResultsManager deliver pending crit review results to my topics (see its #deliverResultsToTopicsIn:).
 
 Internal Representation:
 - topics - Dictionary keyed by topicId String, valued by AbTopic.
@@ -48,7 +46,7 @@ Implementation Points:
 - #cleanupAllTopics stops watchers and disconnects agents; called before replacing the default instance on load, and on actual image quit (not a plain save) via class>>shutDown:.
 - class>>initialize registers this class on Smalltalk's start-up and shut-down lists; class>>startUp: calls #resetStaleConnections on the default instance when the image resumes, so topics left open across a save/restart reconnect instead of writing to a dead subprocess's pipes.
 - class>>shutDown: calls #save only when a default instance already exists in memory, to avoid lazily creating and persisting an empty manager when AgenticBrowser was never opened this session. It only tears down watchers/connections/monitoring when isImageQuitting is true; a plain image save (isImageQuitting false) leaves them running since the image keeps executing afterward. The quit teardown goes through #cleanupForImageQuit, which runs below the OSSubprocess child watcher's priority so the saved image never holds a half-finished watcher.
-- #runMonitoringLoop sleeps for AbSettings>>#monitoringIntervalSeconds between ticks and runs each periodic check in turn (#resumeStalledTopics, then #deliverCritFinishResults). Each check swallows per-topic errors so one failing topic does not stop the rest from being checked. A crit result that cannot be read (for example while crit's hook is still writing it) is logged and kept for the next tick.
+- #runMonitoringLoop sleeps for AbSettings>>#monitoringIntervalSeconds between ticks and runs each periodic check in turn (#resumeStalledTopics, then #deliverCritFinishResults). Each check swallows per-topic errors so one failing topic does not stop the rest from being checked.
 - class>>default starts watching and monitoring the instant the singleton is lazily created; class>>defaultLoaded: (used by class>>load) starts both on the freshly loaded instance too, so any entry point that touches the default manager (Pharo UI, Web UI, orchestration scripts) gets them for free.
 "
 Class {
@@ -374,41 +372,13 @@ AbTopicManager >> resumeStalledTopics [
 { #category : 'operations' }
 AbTopicManager >> deliverCritFinishResults [
 
-	self settings useCrit ifFalse: [ ^ self ].
-	AbCritReviewFinishResultsManager default results do: [ :result |
-		[ self deliverCritFinishResult: result ]
-			on: Error
-			do: [ :e | self logCritFinishResult: result failure: e ] ]
+	self reviewFinishResultsManager deliverResultsToTopicsIn: self
 ]
 
-{ #category : 'private' }
-AbTopicManager >> deliverCritFinishResult: anAbCritReviewFinishResult [
+{ #category : 'accessing' }
+AbTopicManager >> reviewFinishResultsManager [
 
-	| topic daemon |
-	topic := (self at: anAbCritReviewFinishResult topicId) ifNil: [
-		Transcript crShow: 'AbTopicManager: discarding crit result of unknown topic ' , anAbCritReviewFinishResult topicId.
-		^ anAbCritReviewFinishResult delete ].
-	daemon := topic critDaemon.
-	daemon isAwaitingFirstFinish ifFalse: [
-		topic logger info: 'deliverCritFinishResults: discarding a later crit result'.
-		^ anAbCritReviewFinishResult delete ].
-	anAbCritReviewFinishResult isApproved
-		ifTrue: [ topic addSystemMessage: 'Crit review approved.' ]
-		ifFalse: [
-			(topic isEndTurn or: [ topic isInitial ]) ifFalse: [ ^ self ].
-			topic sendPrompt: anAbCritReviewFinishResult prompt ].
-	anAbCritReviewFinishResult delete.
-	daemon awaitingFirstFinish: false
-]
-
-{ #category : 'private' }
-AbTopicManager >> logCritFinishResult: anAbCritReviewFinishResult failure: anError [
-
-	| text |
-	text := 'deliverCritFinishResults: will retry ' , anAbCritReviewFinishResult file basename , ' - ' , anError messageText.
-	(self at: anAbCritReviewFinishResult topicId)
-		ifNil: [ Transcript crShow: 'AbTopicManager: ' , text ]
-		ifNotNil: [ :topic | topic logger warn: text ]
+	^ AbCritReviewFinishResultsManager default
 ]
 
 { #category : 'private' }
