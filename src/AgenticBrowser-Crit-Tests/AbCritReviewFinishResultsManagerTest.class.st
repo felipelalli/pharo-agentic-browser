@@ -89,7 +89,7 @@ AbCritReviewFinishResultsManagerTest >> testPrepareFinishHooksForSavesPayloadInt
 	topic := AbTopic new.
 	hooks := manager prepareFinishHooksFor: topic.
 	self assert: hooks keys asSet equals: #( 'on_finish_unresolved' 'on_finish_approved' ) asSet.
-	manager kinds do: [ :kind |
+	manager finishKinds do: [ :kind |
 		self
 			assert: (hooks at: 'on_finish_' , kind)
 			equals: 'inline:cat > ' , (manager fileForTopicId: topic topicId kind: kind) fullName shellQuoted ].

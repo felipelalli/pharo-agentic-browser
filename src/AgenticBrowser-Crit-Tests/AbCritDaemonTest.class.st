@@ -512,7 +512,7 @@ AbCritDaemonTest >> testStartReviewSpawnWritesFinishHooksForTopic [
 	topic := self readyTopicNamed: 'hooks'.
 	self startSpawning: (self daemonFor: topic).
 	hooks := (STONJSON fromString: (topic workingDirectory path / '.crit.config.json') contents) at: 'hooks'.
-	AbCritReviewFinishResultsManager default kinds do: [ :kind |
+	AbCritReviewFinishResultsManager default finishKinds do: [ :kind |
 		self
 			assert: (hooks at: 'on_finish_' , kind)
 			equals: 'inline:cat > ''' , (AbCritReviewFinishResultsManager default fileForTopicId: topic topicId kind: kind) fullName , '''' ].

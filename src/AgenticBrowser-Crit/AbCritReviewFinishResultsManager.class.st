@@ -70,13 +70,13 @@ AbCritReviewFinishResultsManager >> directory: aDirectoryReference [
 	directory := aDirectoryReference
 ]
 
-{ #category : 'accessing' }
-AbCritReviewFinishResultsManager >> kinds [
+{ #category : 'constants' }
+AbCritReviewFinishResultsManager >> finishKinds [
 
 	^ self class finishKinds
 ]
 
-{ #category : 'accessing' }
+{ #category : 'constants' }
 AbCritReviewFinishResultsManager class >> finishKinds [
 
 	^ #( #unresolved #approved )
@@ -97,13 +97,13 @@ AbCritReviewFinishResultsManager >> fileForTopicId: aTopicIdString kind: aKindSy
 { #category : 'accessing' }
 AbCritReviewFinishResultsManager >> filesForTopicId: aTopicIdString [
 
-	^ self kinds collect: [ :kind | self fileForTopicId: aTopicIdString kind: kind ]
+	^ self finishKinds collect: [ :kind | self fileForTopicId: aTopicIdString kind: kind ]
 ]
 
 { #category : 'preparing-hooks' }
 AbCritReviewFinishResultsManager >> prepareFinishHooksFor: aTopic [
 
-	^ self kinds
+	^ self finishKinds
 		  inject: Dictionary new
 		  into: [ :hooks :kind |
 			  hooks
@@ -143,14 +143,14 @@ AbCritReviewFinishResultsManager >> deleteFilesFor: aTopic [
 AbCritReviewFinishResultsManager >> isSystemDefinedHookCommand: aCommandString [
 
 	^ aCommandString isString and: [
-		  aCommandString matchesRegex: 'inline\:cat > ''.*/' , self directoryName , '/[^/]+-(' , ('|' join: self kinds) , ')\.json''' ]
+		  aCommandString matchesRegex: 'inline\:cat > ''.*/' , self directoryName , '/[^/]+-(' , ('|' join: self finishKinds) , ')\.json''' ]
 ]
 
 { #category : 'accessing' }
 AbCritReviewFinishResultsManager >> results [
 
 	self directory exists ifFalse: [ ^ #(  ) ].
-	^ self kinds flatCollect: [ :kind |
+	^ self finishKinds flatCollect: [ :kind |
 		  | suffix |
 		  suffix := self fileNameSuffixFor: kind.
 		  (self directory files select: [ :file | file basename endsWith: suffix ]) collect: [ :file |
