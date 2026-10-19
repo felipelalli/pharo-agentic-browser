@@ -13,6 +13,8 @@ CLAUDE.md
 CLAUDE.local.md
 opencode.json
 .worktrees/
+.audit/
+openspec/
 
 # APM dependencies
 apm_modules/

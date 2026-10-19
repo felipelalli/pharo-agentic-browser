@@ -171,8 +171,12 @@ AbSettingsTest >> testAsFullJsonDictionaryContainsAllAccessingKeys [
 	self assert: (dict includesKey: 'useCommandOnGoalSet').
 	self assert: (dict includesKey: 'useStBuddySkillOnInitialPrompt').
 	self assert: (dict includesKey: 'goalHavingTopicStallThresholdSeconds').
-	self assert: (dict includesKey: 'stallMonitoringIntervalSeconds').
-	self deny: (dict includesKey: 'watcherMessageThrottleDuration')
+	self assert: (dict includesKey: 'monitoringIntervalSeconds').
+	self assert: (dict includesKey: 'useCrit').
+	self assert: (dict includesKey: 'critPortRange').
+	self deny: (dict includesKey: 'watcherMessageThrottleDuration').
+	self deny: (dict includesKey: 'stallMonitoringIntervalSeconds').
+	self deny: (dict includesKey: 'critPortInterval')
 ]
 
 { #category : 'tests' }
@@ -268,16 +272,135 @@ AbSettingsTest >> testGoalHavingTopicStallThresholdSecondsSettable [
 ]
 
 { #category : 'tests' }
-AbSettingsTest >> testStallMonitoringIntervalSecondsDefault [
+AbSettingsTest >> testMonitoringIntervalSecondsDefault [
 
-	self assert: AbSettings default stallMonitoringIntervalSeconds equals: 30
+	self assert: AbSettings default monitoringIntervalSeconds equals: 15
 ]
 
 { #category : 'tests' }
-AbSettingsTest >> testStallMonitoringIntervalSecondsSettable [
+AbSettingsTest >> testMonitoringIntervalSecondsSettable [
 
 	| settings |
 	settings := AbSettings defaultCopied.
-	settings stallMonitoringIntervalSeconds: 15.
-	self assert: settings stallMonitoringIntervalSeconds equals: 15
+	settings monitoringIntervalSeconds: 45.
+	self assert: settings monitoringIntervalSeconds equals: 45
+]
+
+{ #category : 'tests' }
+AbSettingsTest >> testLoadFromAcceptsOldStallMonitoringIntervalSecondsKey [
+
+	| file settings |
+	file := FileSystem memory root / 'ab-settings.json'.
+	file writeStreamDo: [ :stream | stream nextPutAll: '{"stallMonitoringIntervalSeconds": 45}' ].
+	settings := AbSettings loadFrom: file.
+	self assert: settings monitoringIntervalSeconds equals: 45
+]
+
+{ #category : 'tests' }
+AbSettingsTest >> testSaveAfterLoadingOldIntervalKeyWritesOnlyNewKey [
+
+	| file saved dict |
+	file := FileSystem memory root / 'ab-settings.json'.
+	file writeStreamDo: [ :stream | stream nextPutAll: '{"stallMonitoringIntervalSeconds": 45}' ].
+	saved := file parent / 'saved.json'.
+	(AbSettings loadFrom: file) saveFullTo: saved.
+	dict := STONJSON fromString: saved contents.
+	self assert: (dict at: 'monitoringIntervalSeconds') equals: 45.
+	self deny: (dict includesKey: 'stallMonitoringIntervalSeconds')
+]
+
+{ #category : 'tests' }
+AbSettingsTest >> testSaveFullToReplacesExistingLongerFileCompletely [
+
+	| settings dict |
+	self withTempDirectoryDo: [ :root |
+		| file |
+		file := root / 'ab-settings.json'.
+		self writeLongerFile: file marked: 'TRAILING-OLD-CONTENT'.
+		settings := AbSettings new.
+		settings monitoringIntervalSeconds: 15.
+		settings saveFullTo: file.
+		self deny: (file contents includesSubstring: 'TRAILING-OLD-CONTENT').
+		dict := STONJSON fromString: file contents.
+		self assert: (dict at: 'monitoringIntervalSeconds') equals: 15 ]
+]
+
+{ #category : 'tests' }
+AbSettingsTest >> testSaveFullToRestoresExistingFileWhenWritingFails [
+
+	| settings original |
+	original := '{"monitoringIntervalSeconds": 30}'.
+	self withTempDirectoryDo: [ :root |
+		| file |
+		file := root / 'ab-settings.json'.
+		file writeStreamDo: [ :stream | stream nextPutAll: original ].
+		settings := AbSettings new.
+		"An empty block is not JSON, so serialization fails inside the write."
+		settings monitoringIntervalSeconds: [].
+		self should: [ settings saveFullTo: file ] raise: Error.
+		self assert: file exists.
+		self assert: file contents equals: original ]
+]
+
+{ #category : 'tests' }
+AbSettingsTest >> testUseCritDefaultIsFalse [
+
+	self deny: AbSettings default useCrit
+]
+
+{ #category : 'tests' }
+AbSettingsTest >> testUseCritSettable [
+
+	| settings |
+	settings := AbSettings defaultCopied.
+	settings useCrit: true.
+	self assert: settings useCrit
+]
+
+{ #category : 'tests' }
+AbSettingsTest >> testCritPortRangeDefault [
+
+	self assert: AbSettings default critPortRange equals: '9080-9100'
+]
+
+{ #category : 'tests' }
+AbSettingsTest >> testCritPortRangeSettable [
+
+	| settings |
+	settings := AbSettings defaultCopied.
+	settings critPortRange: '9100-9110'.
+	self assert: settings critPortRange equals: '9100-9110'
+]
+
+{ #category : 'tests' }
+AbSettingsTest >> testDefaultCopiedUnsetCritSettingsFallBackToDefault [
+
+	| copied |
+	AbSettings default useCrit: true.
+	AbSettings default critPortRange: '9101-9102'.
+	copied := AbSettings defaultCopied.
+	self assert: copied useCrit.
+	self assert: copied critPortRange equals: '9101-9102'
+]
+
+{ #category : 'tests' }
+AbSettingsTest >> testCritPortIntervalParsesInclusiveRange [
+
+	AbSettings default critPortRange: '9080-9100'.
+	self assert: AbSettings default critPortInterval equals: (9080 to: 9100)
+]
+
+{ #category : 'tests' }
+AbSettingsTest >> testCritPortIntervalAcceptsSinglePort [
+
+	AbSettings default critPortRange: '9080-9080'.
+	self assert: AbSettings default critPortInterval equals: (9080 to: 9080)
+]
+
+{ #category : 'tests' }
+AbSettingsTest >> testCritPortIntervalRejectsMalformedOrOutOfBoundsRanges [
+
+	#( 'abc' '9080' '9080-' '-9100' ' 9080-9100' '9080-9100 ' '9080-9100-1' '' '0-9100' '9080-65536' '9100-9080' '0-0' ) do: [ :each |
+		AbSettings default critPortRange: each.
+		self assert: AbSettings default critPortInterval isNil ]
 ]

@@ -10,7 +10,7 @@ Responsibility:
 Collaborators:
 - AbTopicListPresenter: Left-panel component; I subscribe to its selection callback.
 - AbChatPresenter: Right-panel component; I call #topic: on it when the selection changes.
-- AbTopicManager: I call #save on close. Watching (#startAllTopicsWatching), stall monitoring, and teardown (#cleanupAllTopics) are all owned by AbTopicManager itself — watching/monitoring start on #default/#load, and teardown only happens on an actual Pharo image quit (see AbTopicManager class>>shutDown:) — none of it depends on this window being open or closed.
+- AbTopicManager: I call #save on close. Watching (#startAllTopicsWatching), monitoring, and teardown (#cleanupAllTopics) are all owned by AbTopicManager itself — watching/monitoring start on #default/#load, and teardown only happens on an actual Pharo image quit (see AbTopicManager class>>shutDown:) — none of it depends on this window being open or closed.
 - AbSettings: I trigger #save on window close.
 - AbSettingsPresenter: I open it via #openOnDefault from the Settings menu.
 

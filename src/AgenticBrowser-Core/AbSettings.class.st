@@ -5,8 +5,9 @@ Responsibility:
 - I store timeout durations and options for AI permission and package export approvals.
 - I cap how many characters of a file attachment's contents are embedded into a prompt via #maxAttachmentSize.
 - I control whether built-in Smalltalk MCP servers are merged into the agent's MCP config.
+- I control whether crit review is offered (#useCrit) and the inclusive port range string (#critPortRange) from which a port is picked when crit starts.
 - I persist the list of available coding agents shown in the New Topic dialog.
-- I control how often AbTopicManager scans for stalled topics via #stallMonitoringIntervalSeconds.
+- I control how often AbTopicManager runs its periodic topic checks via #monitoringIntervalSeconds. I still accept the old key stallMonitoringIntervalSeconds when loading, and save it under the new key.
 - I load from and save to ab-settings.json using STON/JSON serialization.
 - I delegate defaults to the global instance when I am a non-default (per-topic) copy.
 
@@ -124,8 +125,7 @@ AbSettings class >> saveTo: aFileReference [
 AbSettings >> saveFullTo: aFileReference [
 
 	aFileReference parent ensureCreateDirectory.
-	aFileReference ensureDelete.
-	aFileReference writeStreamDo: [ :stream |
+	aFileReference safeWriteStreamDo: [ :stream |
 		stream nextPutAll: (STONJSON toStringPretty: self asFullJsonDictionary) ]
 ]
 
@@ -269,6 +269,18 @@ AbSettings >> defaultUseStBuddySkillOnInitialPrompt [
 ]
 
 { #category : 'defaults' }
+AbSettings >> defaultUseCrit [
+	self isDefault ifFalse: [ ^ self class default defaultUseCrit ].
+	^ false
+]
+
+{ #category : 'defaults' }
+AbSettings >> defaultCritPortRange [
+	self isDefault ifFalse: [ ^ self class default defaultCritPortRange ].
+	^ '9080-9100'
+]
+
+{ #category : 'defaults' }
 AbSettings >> defaultWatcherMessageThrottleSeconds [
 	self isDefault ifFalse: [ ^ self class default defaultWatcherMessageThrottleSeconds ].
 	^ 2
@@ -287,9 +299,9 @@ AbSettings >> defaultGoalHavingTopicStallThresholdSeconds [
 ]
 
 { #category : 'defaults' }
-AbSettings >> defaultStallMonitoringIntervalSeconds [
-	self isDefault ifFalse: [ ^ self class default defaultStallMonitoringIntervalSeconds ].
-	^ 30
+AbSettings >> defaultMonitoringIntervalSeconds [
+	self isDefault ifFalse: [ ^ self class default defaultMonitoringIntervalSeconds ].
+	^ 15
 ]
 
 { #category : 'accessing' }
@@ -406,6 +418,30 @@ AbSettings >> useStBuddySkillOnInitialPrompt: aBoolean [
 ]
 
 { #category : 'accessing' }
+AbSettings >> useCrit [
+
+	^ self at: #useCrit ifAbsent: [ self defaultUseCrit ]
+]
+
+{ #category : 'accessing' }
+AbSettings >> useCrit: aBoolean [
+
+	self at: #useCrit put: aBoolean
+]
+
+{ #category : 'accessing' }
+AbSettings >> critPortRange [
+
+	^ self at: #critPortRange ifAbsent: [ self defaultCritPortRange ]
+]
+
+{ #category : 'accessing' }
+AbSettings >> critPortRange: aString [
+
+	self at: #critPortRange put: aString
+]
+
+{ #category : 'accessing' }
 AbSettings >> watcherMessageThrottleSeconds [
 
 	^ self
@@ -423,6 +459,20 @@ AbSettings >> watcherMessageThrottleSeconds: anInteger [
 AbSettings >> watcherMessageThrottleDuration [
 
 	^ self watcherMessageThrottleSeconds seconds
+]
+
+{ #category : 'accessing-convenient' }
+AbSettings >> critPortInterval [
+
+	| range parts low high |
+	range := self critPortRange.
+	(range isString and: [ range matchesRegex: '^[0-9]+-[0-9]+$' ]) ifFalse: [ ^ nil ].
+	parts := range splitOn: $-.
+	low := parts first asInteger.
+	high := parts second asInteger.
+	((low between: 1 and: 65535) and: [
+		 (high between: 1 and: 65535) and: [ low <= high ] ]) ifFalse: [ ^ nil ].
+	^ low to: high
 ]
 
 { #category : 'accessing' }
@@ -452,17 +502,24 @@ AbSettings >> goalHavingTopicStallThresholdSeconds: anInteger [
 ]
 
 { #category : 'accessing' }
-AbSettings >> stallMonitoringIntervalSeconds [
+AbSettings >> monitoringIntervalSeconds [
 
 	^ self
-		  at: #stallMonitoringIntervalSeconds
-		  ifAbsent: [ self defaultStallMonitoringIntervalSeconds ]
+		  at: #monitoringIntervalSeconds
+		  ifAbsent: [ self defaultMonitoringIntervalSeconds ]
+]
+
+{ #category : 'accessing' }
+AbSettings >> monitoringIntervalSeconds: anInteger [
+
+	self at: #monitoringIntervalSeconds put: anInteger
 ]
 
 { #category : 'accessing' }
 AbSettings >> stallMonitoringIntervalSeconds: anInteger [
+	"Kept so that an ab-settings.json saved before the rename to #monitoringIntervalSeconds keeps its value on load."
 
-	self at: #stallMonitoringIntervalSeconds put: anInteger
+	self monitoringIntervalSeconds: anInteger
 ]
 
 { #category : 'accessing-convenient' }
