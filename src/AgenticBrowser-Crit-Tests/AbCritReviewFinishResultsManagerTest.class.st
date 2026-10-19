@@ -111,16 +111,16 @@ AbCritReviewFinishResultsManagerTest >> testDeleteFilesForDeletesOnlyThatTopicsF
 ]
 
 { #category : 'tests' }
-AbCritReviewFinishResultsManagerTest >> testFinishHooksForAddsThemKeepingOtherHooks [
+AbCritReviewFinishResultsManagerTest >> testFinishHooksAttachedToForAddsThemKeepingOtherHooks [
 
 	| manager topic original hooks |
-	manager := AbCritReviewFinishResultsManager new.
+	manager := AbCritReviewFinishResultsManager new directory: FileSystem memory root / 'crit-results'; yourself.
 	topic := AbTopic new.
 	original := Dictionary new
 		at: 'on_review_start' put: 'inline:true';
 		at: 'on_finish_unresolved' put: 'inline:cat > ''/old/crit-results/x-unresolved.json''';
 		yourself.
-	hooks := manager finishHooksFor: topic from: original.
+	hooks := manager finishHooksAttachedTo: original for: topic.
 	self assert: (hooks at: 'on_review_start') equals: 'inline:true'.
 	(manager prepareFinishHooksFor: topic) keysAndValuesDo: [ :name :command |
 		self assert: (hooks at: name) equals: command ].
@@ -128,9 +128,10 @@ AbCritReviewFinishResultsManagerTest >> testFinishHooksForAddsThemKeepingOtherHo
 ]
 
 { #category : 'tests' }
-AbCritReviewFinishResultsManagerTest >> testFinishHooksForIsNilWhenUserDefinedFinishHookExists [
+AbCritReviewFinishResultsManagerTest >> testFinishHooksAttachedToForIsNilWhenUserDefinedFinishHookExists [
 
-	| original |
+	| manager original |
+	manager := AbCritReviewFinishResultsManager new directory: FileSystem memory root / 'crit-results'; yourself.
 	original := Dictionary new at: 'on_finish_approved' put: 'inline:echo approved >> ~/finishes.log'; yourself.
-	self assert: (AbCritReviewFinishResultsManager new finishHooksFor: AbTopic new from: original) isNil
+	self assert: (manager finishHooksAttachedTo: original for: AbTopic new) isNil
 ]
