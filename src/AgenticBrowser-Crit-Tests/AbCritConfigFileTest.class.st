@@ -173,8 +173,8 @@ AbCritConfigFileTest >> ensurePortErrorFor: aTopic amongTopics: aTopicCollection
 	^ [
 	  AbCritConfigFile ensurePortIn: aTopic workingDirectory amongTopics: aTopicCollection.
 	  nil ]
-		  on: Error
-		  do: [ :ex | ex messageText ]
+		  on: AbCritError
+		  do: [ :ex | ex ]
 ]
 
 { #category : 'tests' }
@@ -260,12 +260,15 @@ AbCritConfigFileTest >> testEnsurePortSkipsHandWrittenAndUnreadablePortsOfRunnin
 { #category : 'tests' }
 AbCritConfigFileTest >> testEnsurePortSignalsInvalidRangeWithoutWriting [
 
-	| dir topic parsed |
+	| dir topic error parsed |
 	AbSettings default critPortRange: '9080-'.
 	dir := self directoryNamed: 'bad-range'.
 	self writeJson: (Dictionary new at: 'port' put: 0; yourself) in: dir.
 	topic := self topicAt: dir.
-	self assert: (self ensurePortErrorFor: topic amongTopics: { topic }) equals: 'invalid critPortRange: 9080-'.
+	error := self ensurePortErrorFor: topic amongTopics: { topic }.
+	self assert: error kind equals: #invalidPortRange.
+	self assert: error messageText equals: 'invalid critPortRange: 9080-'.
+	self assert: (error dataAt: #portRange) equals: '9080-'.
 	parsed := STONJSON fromString: (dir / '.crit.config.json') contents.
 	self assert: (parsed at: 'port') equals: 0
 ]
@@ -273,15 +276,16 @@ AbCritConfigFileTest >> testEnsurePortSignalsInvalidRangeWithoutWriting [
 { #category : 'tests' }
 AbCritConfigFileTest >> testEnsurePortSignalsExhaustedRangeWithoutWriting [
 
-	| held dir topic parsed |
+	| held dir topic error parsed |
 	AbSettings default critPortRange: '9080-9080'.
 	held := self topicWithPort: 9080 named: 'held' critRunning: true.
 	dir := self directoryNamed: 'full'.
 	self writeJson: (Dictionary new at: 'port' put: 0; at: 'extra' put: 'stay'; yourself) in: dir.
 	topic := self topicAt: dir.
-	self
-		assert: (self ensurePortErrorFor: topic amongTopics: { held. topic })
-		equals: 'crit port range exhausted: 9080-9080'.
+	error := self ensurePortErrorFor: topic amongTopics: { held. topic }.
+	self assert: error kind equals: #portRangeExhausted.
+	self assert: error messageText equals: 'crit port range exhausted: 9080-9080'.
+	self assert: (error dataAt: #portInterval) equals: (9080 to: 9080).
 	parsed := STONJSON fromString: (dir / '.crit.config.json') contents.
 	self assert: (parsed at: 'port') equals: 0.
 	self assert: (parsed at: 'extra') equals: 'stay'

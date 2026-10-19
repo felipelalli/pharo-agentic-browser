@@ -283,6 +283,17 @@ AbCritDaemonTest >> testStartReviewTimesOutWhenDaemonNeverRuns [
 ]
 
 { #category : 'tests' }
+AbCritDaemonTest >> testIsDaemonRunningSignalsCritErrorWhenStatusLacksRunning [
+
+	| daemon error |
+	daemon := self daemonFor: (self readyTopicNamed: 'no-running').
+	daemon statusReplies add: '{"daemon":{}}'.
+	error := [ daemon isDaemonRunning. nil ] on: AbCritError do: [ :ex | ex ].
+	self assert: error kind equals: #statusUnavailable.
+	self assert: error messageText equals: 'crit status failed (is crit on PATH?)'
+]
+
+{ #category : 'tests' }
 AbCritDaemonTest >> testStartReviewStatusFailurePostsMessageWithoutSpawning [
 
 	| topic daemon reason log |

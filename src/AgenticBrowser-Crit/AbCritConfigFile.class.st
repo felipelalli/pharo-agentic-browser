@@ -17,7 +17,7 @@ Collaborators:
 
 Public API and Key Messages:
 - AbCritConfigFile class>>in: - Config file for one directory.
-- AbCritConfigFile class>>ensurePortIn: - Answer the port crit must use, among the topicManager's topics. Signals an Error for an invalid range or an exhausted range.
+- AbCritConfigFile class>>ensurePortIn: - Answer the port crit must use, among the topicManager's topics. Signals an AbCritError for an invalid range or an exhausted range.
 - AbCritConfigFile class>>ensurePortIn:amongTopics: - Same, among the given topics.
 - AbCritConfigFile class>>topicManager: - Inject the AbTopicManager to consult (defaults to AbTopicManager default).
 - #port - Assigned port, or nil. Cached once read.
@@ -100,11 +100,15 @@ AbCritConfigFile class >> ensurePortIn: anAbWorkingDirectory amongTopics: aTopic
 	config port ifNotNil: [ :configured |
 		(used includes: configured) ifFalse: [ ^ configured ] ].
 	interval := AbSettings default critPortInterval ifNil: [
-		^ self error: 'invalid critPortRange: ' , AbSettings default critPortRange asString ].
+		^ (AbCritError
+			   invalidPortRange: 'invalid critPortRange: ' , AbSettings default critPortRange asString
+			   portRange: AbSettings default critPortRange) signal ].
 	port := interval
 		detect: [ :each | (used includes: each) not ]
 		ifNone: [
-			^ self error: ('crit port range exhausted: {1}-{2}' format: { interval first. interval last }) ].
+			^ (AbCritError
+				   portRangeExhausted: ('crit port range exhausted: {1}-{2}' format: { interval first. interval last })
+				   portInterval: interval) signal ].
 	config writePort: port.
 	^ port
 ]

@@ -20,7 +20,7 @@ Collaborators:
 Public API and Key Messages:
 - AbCritDaemon class>>forTopic: - Daemon for one topic.
 - #isAvailable / #unavailableReason / #refusalReasonOnStart - Whether the control is shown (useCrit and .git) and whether a start may proceed.
-- #isDaemonRunning - Whether crit status reports a running daemon; signals an Error when the status cannot be read.
+- #isDaemonRunning - Whether crit status reports a running daemon; signals an AbCritError when the status does not report it, and lets a JSON parse Error through.
 - #startReviewForHost:ifStarted:ifFailed: - Synchronous start. ifStarted: receives the url and port. ifFailed: receives the reason.
 - #isAwaitingFirstFinish - Whether the first Finish result since the last successful start is still to be delivered.
 
@@ -162,12 +162,12 @@ AbCritDaemon >> refusalReasonOnStart [
 AbCritDaemon >> startReviewForHost: aHostString ifStarted: started ifFailed: failed [
 
 	[ (self class isValidReviewHost: aHostString) ifFalse: [
-		  ^ self fail: 'invalid host' with: failed ].
-	self refusalReasonOnStart ifNotNil: [ :reason | ^ self fail: reason with: failed ].
+		  ^ self onFailDo: failed reason: 'invalid host' ].
+	self refusalReasonOnStart ifNotNil: [ :reason | ^ self onFailDo: failed reason: reason ].
 	self withLaunchMutexDo: [
 		self launchForHost: aHostString ifStarted: started ifFailed: failed ] ]
 		on: Error
-		do: [ :ex | self fail: ex messageText with: failed ]
+		do: [ :ex | self onFailDo: failed reason: ex messageText ]
 ]
 
 { #category : 'private' }
@@ -175,13 +175,13 @@ AbCritDaemon >> launchForHost: aHostString ifStarted: started ifFailed: failed [
 
 	| running url |
 	running := [ self isDaemonRunning ] on: Error do: [ nil ].
-	running ifNil: [ ^ self fail: 'crit status failed (is crit on PATH?)' with: failed ].
+	running ifNil: [ ^ self onFailDo: failed reason: 'crit status failed (is crit on PATH?)' ].
 	running ifFalse: [
 		self ensurePort.
 		self ensureFinishHooks.
-		[ self spawn ] on: Error do: [ :ex | ^ self fail: ex messageText with: failed ].
+		[ self spawn ] on: Error do: [ :ex | ^ self onFailDo: failed reason: ex messageText ].
 		self waitUntilRunning ifFalse: [
-			^ self fail: self startTimeoutReason with: failed ] ].
+			^ self onFailDo: failed reason: self startTimeoutReason ] ].
 	self awaitFirstFinish.
 	url := self reviewUrlForHost: aHostString.
 	self topic addSystemMessage: 'Crit review: ' , url
@@ -261,7 +261,7 @@ AbCritDaemon >> isDaemonRunning [
 	json := STONJSON fromString: (self runShellCommand: 'crit status --json').
 	daemon := json isDictionary ifTrue: [ json at: 'daemon' ifAbsent: [ nil ] ] ifFalse: [ nil ].
 	running := daemon isDictionary ifTrue: [ daemon at: 'running' ifAbsent: [ nil ] ] ifFalse: [ nil ].
-	^ running ifNil: [ self error: 'crit status failed (is crit on PATH?)' ]
+	^ running ifNil: [ (AbCritError statusUnavailable: 'crit status failed (is crit on PATH?)') signal ]
 ]
 
 { #category : 'private' }
@@ -290,13 +290,13 @@ AbCritDaemon >> reviewUrlForHost: aHostString [
 ]
 
 { #category : 'private' }
-AbCritDaemon >> fail: aReasonString with: aReasonBlock [
+AbCritDaemon >> onFailDo: aFailedBlock reason: aReasonString [
 
 	self topic addSystemMessage: ('Crit review failed: {1} (log: {2})' format: {
 				 aReasonString.
 				 self logFile fullName }).
 	self topic logger warn: { self class name. #startReview. aReasonString }.
-	aReasonBlock value: aReasonString
+	aFailedBlock value: aReasonString
 ]
 
 { #category : 'accessing' }
