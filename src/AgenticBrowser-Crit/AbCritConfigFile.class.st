@@ -170,7 +170,7 @@ AbCritConfigFile >> readPort [
 AbCritConfigFile >> writePort: anInteger [
 
 	| contents |
-	contents := self contentsOrDefault.
+	contents := self readContentsOrDefault.
 	contents at: 'port' put: anInteger.
 	self writeContents: contents.
 	port := anInteger
@@ -179,26 +179,26 @@ AbCritConfigFile >> writePort: anInteger [
 { #category : 'operations' }
 AbCritConfigFile >> ensureFinishHooksFor: aTopic [
 
-	| hooks |
-	hooks := self reviewFinishResultsManager
-		         hooksWithFinishHooksFor: aTopic
-		         from: self hooksContents.
-	hooks ifNil: [ ^ false ].
-	self writeHooks: hooks in: self contentsOrDefault.
+	| allConfigContents hooksDict |
+	allConfigContents := self readContentsOrDefault.
+	hooksDict := self reviewFinishResultsManager
+		         finishHooksAttachedTo: (self hooksContentsIn: allConfigContents) for: aTopic.
+	hooksDict ifNil: [ ^ false ].
+	self applyHooks: hooksDict to: allConfigContents.
 	^ true
 ]
 
 { #category : 'private' }
-AbCritConfigFile >> hooksContents [
+AbCritConfigFile >> hooksContentsIn: allConfigContents [
 
-	^ self contentsOrDefault at: 'hooks' ifAbsent: [ Dictionary new ]
+	^ allConfigContents at: 'hooks' ifAbsent: [ Dictionary new ]
 ]
 
 { #category : 'private' }
-AbCritConfigFile >> writeHooks: aHookDictionary in: aContentsDictionary [
+AbCritConfigFile >> applyHooks: aHookDictionary to: aContentsDictionary [
 	"Write only when the hooks change, so crit's project trust stays valid."
 
-	(aContentsDictionary at: 'hooks' ifAbsent: [ nil ]) = aHookDictionary ifTrue: [ ^ self ].
+	(aContentsDictionary at: 'hooks' ifAbsent: []) = aHookDictionary ifTrue: [ ^ self ].
 	aContentsDictionary at: 'hooks' put: aHookDictionary.
 	self writeContents: aContentsDictionary
 ]
@@ -217,7 +217,7 @@ AbCritConfigFile >> writeContents: aDictionary [
 ]
 
 { #category : 'private' }
-AbCritConfigFile >> contentsOrDefault [
+AbCritConfigFile >> readContentsOrDefault [
 
 	^ [ STONJSON fromString: self file contents ]
 		  on: Error

@@ -25,7 +25,7 @@ Public API and Key Messages:
 - #fileForTopicId:kind: - The result file for one topic and kind.
 - #filesForTopicId: - The result files for one topic, one per kind.
 - #prepareFinishHooksFor: - Hook name -> command Dictionary for a topic: each on_finish_<kind> hook saves the payload with cat into the topic's file for that kind.
-- #hooksWithFinishHooksFor:from: - A copy of the given hooks with a topic's finish hooks set; nil when one of those hook names already holds a user-defined command.
+- #finishHooksAttachedTo:for: - A copy of the given hooks with a topic's finish hooks set; nil when one of those hook names already holds a user-defined command.
 - #ensureFinishHooksFor: - Create my directory and ensure the topic's finish hooks in the daemon's .crit.config.json; answer false when the file already defines its own on_finish hook.
 - #deleteFilesFor: - Delete a topic's result files.
 - #isSystemDefinedHookCommand: - Whether a hook command is one AgenticBrowser wrote: exactly the cat into a <topicId>-<kind>.json under a crit-results directory, possibly of an earlier AgenticBrowser root.
@@ -82,6 +82,12 @@ AbCritReviewFinishResultsManager >> directory: aDirectoryReference [
 { #category : 'accessing' }
 AbCritReviewFinishResultsManager >> kinds [
 
+	^ self class finishKinds
+]
+
+{ #category : 'accessing' }
+AbCritReviewFinishResultsManager class >> finishKinds [
+
 	^ #( #unresolved #approved )
 ]
 
@@ -103,7 +109,7 @@ AbCritReviewFinishResultsManager >> filesForTopicId: aTopicIdString [
 	^ self kinds collect: [ :kind | self fileForTopicId: aTopicIdString kind: kind ]
 ]
 
-{ #category : 'accessing' }
+{ #category : 'preparing-hooks' }
 AbCritReviewFinishResultsManager >> prepareFinishHooksFor: aTopic [
 
 	^ self kinds
@@ -115,17 +121,11 @@ AbCritReviewFinishResultsManager >> prepareFinishHooksFor: aTopic [
 				  yourself ]
 ]
 
-{ #category : 'operations' }
-AbCritReviewFinishResultsManager >> ensureFinishHooksFor: anAbCritDaemon [
-
-	self directory ensureCreateDirectory.
-	^ anAbCritDaemon configFile ensureFinishHooksFor: anAbCritDaemon topic
-]
-
-{ #category : 'accessing' }
-AbCritReviewFinishResultsManager >> hooksWithFinishHooksFor: aTopic from: aHookDictionary [
+{ #category : 'preparing-hooks' }
+AbCritReviewFinishResultsManager >> finishHooksAttachedTo: aHookDictionary for: aTopic  [
 
 	| finishHooks |
+	self directory ensureCreateDirectory.
 	finishHooks := self prepareFinishHooksFor: aTopic.
 	(self hasUserDefinedHookNamedAnyOf: finishHooks keys in: aHookDictionary) ifTrue: [ ^ nil ].
 	^ aHookDictionary copy

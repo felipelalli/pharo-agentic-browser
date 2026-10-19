@@ -199,7 +199,7 @@ AbCritDaemon >> ensurePort [
 { #category : 'private' }
 AbCritDaemon >> ensureFinishHooks [
 
-	(self reviewFinishResultsManager ensureFinishHooksFor: self) ifFalse: [
+	^ (self configFile ensureFinishHooksFor: self topic) ifFalse: [
 		self topic addSystemMessage:
 			'Crit review: automatic delivery of the first review result is off, because .crit.config.json already defines its own on_finish hook' ]
 ]
