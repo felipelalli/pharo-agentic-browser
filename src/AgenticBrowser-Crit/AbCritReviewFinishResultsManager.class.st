@@ -3,7 +3,7 @@ I am the singleton that owns the result files of crit review Finishes, written a
 
 Responsibility:
 - I own where result files live and how they are named: one file per topic and finish kind (unresolved or approved) under crit-results/ in the AgenticBrowser root directory.
-- I prepare a topic's finish hooks, which save crit's finish payload into my files, merge them into existing hooks unless the user defined a finish hook there, and ensure them in its .crit.config.json.
+- I prepare a topic's finish hooks, which save crit's finish payload into my files, and merge them into given hooks unless the user defined a finish hook there.
 - I delete a topic's result files.
 - I recognize finish hook commands that write into my directory, so a hook from an earlier AgenticBrowser root is still treated as ours.
 - I list the result files in my directory as AbCritReviewFinishResult instances, reading the topicId and kind from each file name.
@@ -12,24 +12,15 @@ Responsibility:
 Collaborators:
 - AbSettings: I read #defaultAgenticBrowserRootDirectory, and #useCrit through #settings.
 - AbCritReviewFinishResult: I create one per result file.
-- AbCritDaemon: It asks me to ensure its topic's finish hooks before spawning, and to delete its topic's stale files when a review starts. I read its #topic and #configFile.
-- AbCritConfigFile: I ask it to ensure a topic's finish hooks; it passes me its hooks and writes back the ones I answer.
+- AbCritDaemon: It asks me to delete its topic's stale files when a review starts.
+- AbCritConfigFile: It passes me its hooks to attach a topic's finish hooks to, and writes back the ones I answer.
 - AbTopicManager: It asks me to deliver pending results to its topics, which I look up with its #at:.
 - AbTopic: I send it the prompt or system message, and read its status, logger, and crit daemon.
 - AbCritDaemon: I ask whether it awaits its first finish, and clear that once delivered.
 
 Public API and Key Messages:
-- AbCritReviewFinishResultsManager class>>default - The global singleton.
-- #directory - The crit-results directory.
-- #kinds - #unresolved and #approved, matching crit's on_finish_unresolved and on_finish_approved hooks.
-- #fileForTopicId:kind: - The result file for one topic and kind.
-- #filesForTopicId: - The result files for one topic, one per kind.
-- #prepareFinishHooksFor: - Hook name -> command Dictionary for a topic: each on_finish_<kind> hook saves the payload with cat into the topic's file for that kind.
-- #finishHooksAttachedTo:for: - A copy of the given hooks with a topic's finish hooks set; nil when one of those hook names already holds a user-defined command.
-- #ensureFinishHooksFor: - Create my directory and ensure the topic's finish hooks in the daemon's .crit.config.json; answer false when the file already defines its own on_finish hook.
+- #finishHooksAttachedTo:for: - Create my directory and answer a copy of the given hooks with a topic's finish hooks set; nil when one of those hook names already holds a user-defined command.
 - #deleteFilesFor: - Delete a topic's result files.
-- #isSystemDefinedHookCommand: - Whether a hook command is one AgenticBrowser wrote: exactly the cat into a <topicId>-<kind>.json under a crit-results directory, possibly of an earlier AgenticBrowser root.
-- #results - One AbCritReviewFinishResult per result file in the directory; empty when it does not exist.
 - #deliverResultsToTopicsIn: - Deliver the pending results to the topics of an AbTopicManager, as described above. Does nothing while useCrit is false.
 
 Internal Representation:

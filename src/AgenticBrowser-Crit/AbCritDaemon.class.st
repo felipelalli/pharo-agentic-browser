@@ -11,8 +11,8 @@ Responsibility:
 
 Collaborators:
 - AbTopic: I read its working directory, status, and logger, and I post the review message on it.
-- AbCritConfigFile: I ask it to ensure the port before spawning, and read the port through one cached instance. AbCritReviewFinishResultsManager writes the finish hooks through it.
-- AbCritReviewFinishResultsManager: I ask it to ensure the finish hooks before spawning, and to delete my topic's result files when a start succeeds.
+- AbCritConfigFile: I ask it to ensure the port and the finish hooks before spawning, and read the port through one cached instance.
+- AbCritReviewFinishResultsManager: I ask it to delete my topic's result files when a start succeeds.
 - AbTopicSession: It caches me, one per topic.
 - AbSettings: I read #useCrit and the crit log directory.
 - AbStubCritDaemon: Tests override #runShellCommand: so no process is spawned.
