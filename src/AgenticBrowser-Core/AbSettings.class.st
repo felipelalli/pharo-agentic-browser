@@ -301,7 +301,7 @@ AbSettings >> defaultGoalHavingTopicStallThresholdSeconds [
 { #category : 'defaults' }
 AbSettings >> defaultMonitoringIntervalSeconds [
 	self isDefault ifFalse: [ ^ self class default defaultMonitoringIntervalSeconds ].
-	^ 30
+	^ 15
 ]
 
 { #category : 'accessing' }

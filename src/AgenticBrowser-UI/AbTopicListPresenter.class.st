@@ -41,14 +41,15 @@ Class {
 }
 
 { #category : 'private' }
-AbTopicListPresenter >> addReviewByCritItemTo: aGroup for: aTopic [
+AbTopicListPresenter >> addReviewByCritGroupTo: aMenu for: aTopic [
 
 	aTopic critDaemon isAvailable ifFalse: [ ^ self ].
-	aGroup addItem: [ :item |
-		item
-			name: 'Review by crit';
-			enabled: aTopic isInitial not;
-			action: [ self onReviewByCritRequest ] ]
+	aMenu addGroup: [ :group |
+		group addItem: [ :item |
+			item
+				name: 'Review by crit';
+				enabled: aTopic isInitial not;
+				action: [ self onReviewByCritRequest ] ] ]
 ]
 
 { #category : 'private' }
@@ -70,10 +71,10 @@ AbTopicListPresenter >> applyUpdatedExternalPackagesFor: aTopic [
 { #category : 'private' }
 AbTopicListPresenter >> buildTopicContextMenu [
 
-	| topic notWorking |
+	| topic notWorking menu |
 	topic := self topicList selectedItem.
 	notWorking := topic isWorking not.
-	^ SpMenuPresenter new
+	menu := SpMenuPresenter new
 		  addGroup: [ :group |
 			  group
 				  addItem: [ :item | item name: 'Rename...'; action: [ self onRenameTopicRequest ] ];
@@ -91,9 +92,10 @@ AbTopicListPresenter >> buildTopicContextMenu [
 				  addItem: [ :item | item name: 'Set Target Packages...'; enabled: notWorking; action: [ self onSetTargetPackagesRequest ] ];
 				  addItem: [ :item | item name: 'Apply Updated External Packages'; enabled: notWorking; action: [ self onApplyUpdatedExternalPackagesRequest ] ] ];
 		  addGroup: [ :group |
-			  group addItem: [ :item | item name: 'Edit Settings...'; action: [ self onEditSettingsRequest ] ].
-			  self addReviewByCritItemTo: group for: topic ];
-		  yourself
+			  group addItem: [ :item | item name: 'Edit Settings...'; action: [ self onEditSettingsRequest ] ] ];
+		  yourself.
+	self addReviewByCritGroupTo: menu for: topic.
+	^ menu
 ]
 
 { #category : 'initialization' }

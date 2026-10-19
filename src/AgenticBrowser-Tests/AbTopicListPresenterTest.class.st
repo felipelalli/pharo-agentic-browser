@@ -310,12 +310,33 @@ AbTopicListPresenterTest >> testReviewByCritIsEnabledWithoutCritConfig [
 { #category : 'tests' }
 AbTopicListPresenterTest >> testReviewByCritIsAbsentWhenUnavailable [
 
-	| dir |
+	| dir groups |
 	AbSettings initialize.
 	dir := self prepareCritDirectory.
 	AbSettings default useCrit: false.
 	self selectTopicInList.
-	[ self assert: self reviewByCritItem isNil ] ensure: [
+	[
+		groups := presenter buildTopicContextMenu menuGroups.
+		self deny: ((groups flatCollect: [ :group | group menuItems ]) anySatisfy: [ :item | item name = 'Review by crit' ]).
+		self deny: (groups anySatisfy: [ :group | group menuItems isEmpty ])
+	] ensure: [
+		dir exists ifTrue: [ dir deleteAll ].
+		AbSettings initialize ]
+]
+
+{ #category : 'tests' }
+AbTopicListPresenterTest >> testReviewByCritIsInItsOwnGroup [
+
+	| dir critGroup |
+	AbSettings initialize.
+	AbSettings default useCrit: true.
+	dir := self prepareCritDirectory.
+	self selectTopicInList.
+	[
+		critGroup := presenter buildTopicContextMenu menuGroups detect: [ :group |
+			group menuItems anySatisfy: [ :item | item name = 'Review by crit' ] ].
+		self assert: critGroup menuItems size equals: 1
+	] ensure: [
 		dir exists ifTrue: [ dir deleteAll ].
 		AbSettings initialize ]
 ]

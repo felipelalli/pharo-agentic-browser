@@ -274,7 +274,7 @@ AbSettingsTest >> testGoalHavingTopicStallThresholdSecondsSettable [
 { #category : 'tests' }
 AbSettingsTest >> testMonitoringIntervalSecondsDefault [
 
-	self assert: AbSettings default monitoringIntervalSeconds equals: 30
+	self assert: AbSettings default monitoringIntervalSeconds equals: 15
 ]
 
 { #category : 'tests' }
@@ -282,8 +282,8 @@ AbSettingsTest >> testMonitoringIntervalSecondsSettable [
 
 	| settings |
 	settings := AbSettings defaultCopied.
-	settings monitoringIntervalSeconds: 15.
-	self assert: settings monitoringIntervalSeconds equals: 15
+	settings monitoringIntervalSeconds: 45.
+	self assert: settings monitoringIntervalSeconds equals: 45
 ]
 
 { #category : 'tests' }
@@ -291,9 +291,9 @@ AbSettingsTest >> testLoadFromAcceptsOldStallMonitoringIntervalSecondsKey [
 
 	| file settings |
 	file := FileSystem memory root / 'ab-settings.json'.
-	file writeStreamDo: [ :stream | stream nextPutAll: '{"stallMonitoringIntervalSeconds": 15}' ].
+	file writeStreamDo: [ :stream | stream nextPutAll: '{"stallMonitoringIntervalSeconds": 45}' ].
 	settings := AbSettings loadFrom: file.
-	self assert: settings monitoringIntervalSeconds equals: 15
+	self assert: settings monitoringIntervalSeconds equals: 45
 ]
 
 { #category : 'tests' }
@@ -301,11 +301,11 @@ AbSettingsTest >> testSaveAfterLoadingOldIntervalKeyWritesOnlyNewKey [
 
 	| file saved dict |
 	file := FileSystem memory root / 'ab-settings.json'.
-	file writeStreamDo: [ :stream | stream nextPutAll: '{"stallMonitoringIntervalSeconds": 15}' ].
+	file writeStreamDo: [ :stream | stream nextPutAll: '{"stallMonitoringIntervalSeconds": 45}' ].
 	saved := file parent / 'saved.json'.
 	(AbSettings loadFrom: file) saveFullTo: saved.
 	dict := STONJSON fromString: saved contents.
-	self assert: (dict at: 'monitoringIntervalSeconds') equals: 15.
+	self assert: (dict at: 'monitoringIntervalSeconds') equals: 45.
 	self deny: (dict includesKey: 'stallMonitoringIntervalSeconds')
 ]
 
