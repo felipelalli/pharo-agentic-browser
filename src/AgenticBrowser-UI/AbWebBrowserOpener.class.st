@@ -19,21 +19,21 @@ Class {
 	#package : 'AgenticBrowser-UI'
 }
 
-{ #category : 'private' }
-AbWebBrowserOpener class >> linuxOpenCommandFor: urlString [
-
-	^ 'env -u LD_LIBRARY_PATH xdg-open {1} &' format: { self shellQuoted: urlString }
-]
-
 { #category : 'actions' }
 AbWebBrowserOpener class >> open: urlString [
 
-	OSPlatform current isLinux ifFalse: [ ^ WebBrowser openOn: urlString ].
-	LibC system: (self linuxOpenCommandFor: urlString)
+	^ self new open: urlString
 ]
 
 { #category : 'private' }
-AbWebBrowserOpener class >> shellQuoted: aString [
+AbWebBrowserOpener >> linuxOpenCommandFor: urlString [
 
-	^ (aString copyReplaceAll: '''' with: '''\''''') surroundedBySingleQuotes
+	^ 'env -u LD_LIBRARY_PATH xdg-open {1} &' format: { urlString shellQuoted }
+]
+
+{ #category : 'actions' }
+AbWebBrowserOpener >> open: urlString [
+
+	OSPlatform current isLinux ifFalse: [ ^ WebBrowser openOn: urlString ].
+	LibC system: (self linuxOpenCommandFor: urlString)
 ]

@@ -303,7 +303,7 @@ AbTopicListPresenterTest >> testOpenCritReviewUrlOpensWebBrowser [
 { #category : 'tests' }
 AbTopicListPresenterTest >> testWebBrowserOpenerDefaultsToAbWebBrowserOpener [
 
-	self assert: presenter webBrowserOpener equals: AbWebBrowserOpener
+	self assert: presenter webBrowserOpener class equals: AbWebBrowserOpener
 ]
 
 { #category : 'tests' }

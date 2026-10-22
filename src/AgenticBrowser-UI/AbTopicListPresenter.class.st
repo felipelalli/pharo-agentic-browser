@@ -511,7 +511,7 @@ AbTopicListPresenter >> unsubscribeFromTopicManager [
 { #category : 'accessing' }
 AbTopicListPresenter >> webBrowserOpener [
 
-	^ webBrowserOpener ifNil: [ webBrowserOpener := AbWebBrowserOpener ]
+	^ webBrowserOpener ifNil: [ webBrowserOpener := AbWebBrowserOpener new ]
 ]
 
 { #category : 'accessing' }
