@@ -28,7 +28,7 @@ AbWebBrowserOpener class >> linuxOpenCommandFor: urlString [
 { #category : 'actions' }
 AbWebBrowserOpener class >> open: urlString [
 
-	Smalltalk os isLinux ifFalse: [ ^ WebBrowser openOn: urlString ].
+	OSPlatform current isLinux ifFalse: [ ^ WebBrowser openOn: urlString ].
 	LibC system: (self linuxOpenCommandFor: urlString)
 ]
 
