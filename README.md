@@ -67,7 +67,8 @@ The core workflow:
 - [pharo-acp](https://github.com/mumez/pharo-acp)
 - [SState](https://github.com/mumez/SState)
 - [PharoSmalltalkInteropServer](https://github.com/mumez/PharoSmalltalkInteropServer)
-- At least one ACP-compatible agent installed (e.g. `claude-agent-acp`, `gemini --acp`)
+- At least one ACP-compatible agent installed (e.g. `claude-agent-acp`, `agent acp`)
+  - Whether usage is billed to your subscription plan or as pay-as-you-go API key usage depends on each agent's own authentication and billing scheme
 
 ## Installation
 
@@ -245,10 +246,10 @@ Place a `mcp.json` file in your AgenticBrowser root directory (default: `<imageD
 ```json
 {
   "mcpServers": {
-    "my-server": {
+    "extra-server": {
       "command": "uvx",
-      "args": ["my-server-package"],
-      "env": {"API_KEY": "value"}
+      "args": ["extra-server-package"],
+      "env": {"EX_SERVER_PORT": 12345}
     }
   }
 }
