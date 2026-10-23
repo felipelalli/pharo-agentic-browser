@@ -64,7 +64,9 @@ AbCritDaemonTest >> readyTopicWithoutConfigNamed: aString [
 	(dir / '.git') ensureCreateDirectory.
 	topic := self topicAt: dir.
 	AbSettings default useCrit: true.
-	topic stateMachine handleEvent: #promptSent.
+	topic stateMachine
+		handleEvent: #promptSent;
+		handleEvent: #turnEnded.
 	^ topic
 ]
 
@@ -194,6 +196,35 @@ AbCritDaemonTest >> testStartRefusalReasonWhenTopicIsInitial [
 ]
 
 { #category : 'tests' }
+AbCritDaemonTest >> testStartRefusalReasonWhenTopicIsWorking [
+
+	| topic |
+	topic := self readyTopicWithoutConfigNamed: 'working'.
+	topic stateMachine handleEvent: #promptSent.
+	self assert: (AbCritDaemon forTopic: topic) refusalReasonOnStart equals: 'topic status is working'
+]
+
+{ #category : 'tests' }
+AbCritDaemonTest >> testStartRefusalReasonWhenTopicIsWaitingForHuman [
+
+	| topic |
+	topic := self readyTopicWithoutConfigNamed: 'waiting'.
+	topic stateMachine handleEvent: #permissionRequested.
+	self assert: (AbCritDaemon forTopic: topic) refusalReasonOnStart equals: 'topic status is waitingForHuman'
+]
+
+{ #category : 'tests' }
+AbCritDaemonTest >> testStartRefusalReasonWhenTopicIsGoalAchieved [
+
+	| topic |
+	topic := self readyTopicWithoutConfigNamed: 'achieved'.
+	topic stateMachine
+		handleEvent: #promptSent;
+		handleEvent: #goalReached.
+	self assert: (AbCritDaemon forTopic: topic) refusalReasonOnStart equals: 'topic status is goalAchieved'
+]
+
+{ #category : 'tests' }
 AbCritDaemonTest >> testStartRefusalReasonPrefersUnavailableOverInitial [
 
 	| topic |
@@ -238,7 +269,7 @@ AbCritDaemonTest >> testStartReviewReusesRunningDaemon [
 	self assert: port equals: 9080.
 	self assert: topic messages last text equals: 'Crit review: http://localhost:9080/ (crit asks once to trust this project''s hooks when you first press Finish)'.
 	self assert: (self spawnCount: daemon) equals: 0.
-	self assert: topic isWorking
+	self assert: topic isEndTurn
 ]
 
 { #category : 'tests' }
@@ -279,7 +310,7 @@ AbCritDaemonTest >> testStartReviewTimesOutWhenDaemonNeverRuns [
 	self assert: (reason includesSubstring: 'on port 9080 (the port may be in use by another process)').
 	self assert: topic messages last text equals: 'Crit review failed: ' , reason , ' (log: ' , log fullName , ')'.
 	self assert: (self spawnCount: daemon) equals: 1.
-	self assert: topic isWorking
+	self assert: topic isEndTurn
 ]
 
 { #category : 'tests' }
@@ -308,7 +339,7 @@ AbCritDaemonTest >> testStartReviewStatusFailurePostsMessageWithoutSpawning [
 	self assert: reason equals: 'crit status failed (is crit on PATH?)'.
 	self assert: topic messages last text equals: 'Crit review failed: crit status failed (is crit on PATH?) (log: ' , log fullName , ')'.
 	self assert: (self spawnCount: daemon) equals: 0.
-	self assert: topic isWorking
+	self assert: topic isEndTurn
 ]
 
 { #category : 'tests' }
@@ -344,7 +375,7 @@ AbCritDaemonTest >> testStartReviewSpawnErrorPostsMessageAndLeavesStatus [
 		ifFailed: [ :failed | reason := failed ].
 	self assert: reason equals: 'spawn failed'.
 	self assert: (topic messages last text includesSubstring: 'Crit review failed: spawn failed (log: ').
-	self assert: topic isWorking
+	self assert: topic isEndTurn
 ]
 
 { #category : 'tests' }

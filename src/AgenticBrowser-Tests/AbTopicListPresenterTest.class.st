@@ -313,7 +313,9 @@ AbTopicListPresenterTest >> testReviewByCritIsEnabledWithoutCritConfig [
 	AbSettings initialize.
 	AbSettings default useCrit: true.
 	dir := self prepareCritDirectoryWithoutConfig.
-	topic stateMachine handleEvent: #promptSent.
+	topic stateMachine
+		handleEvent: #promptSent;
+		handleEvent: #turnEnded.
 	self selectTopicInList.
 	[
 		item := self reviewByCritItem.
@@ -376,7 +378,27 @@ AbTopicListPresenterTest >> testReviewByCritIsDisabledWhileTopicIsInitial [
 ]
 
 { #category : 'tests' }
-AbTopicListPresenterTest >> testReviewByCritIsEnabledAfterTopicLeavesInitial [
+AbTopicListPresenterTest >> testReviewByCritIsEnabledWhenTopicIsEndTurn [
+
+	| dir item |
+	AbSettings initialize.
+	AbSettings default useCrit: true.
+	dir := self prepareCritDirectory.
+	topic stateMachine
+		handleEvent: #promptSent;
+		handleEvent: #turnEnded.
+	self selectTopicInList.
+	[
+		item := self reviewByCritItem.
+		self assert: item notNil.
+		self assert: item isEnabled
+	] ensure: [
+		dir exists ifTrue: [ dir deleteAll ].
+		AbSettings initialize ]
+]
+
+{ #category : 'tests' }
+AbTopicListPresenterTest >> testReviewByCritIsDisabledWhileTopicIsWorking [
 
 	| dir item |
 	AbSettings initialize.
@@ -387,7 +409,7 @@ AbTopicListPresenterTest >> testReviewByCritIsEnabledAfterTopicLeavesInitial [
 	[
 		item := self reviewByCritItem.
 		self assert: item notNil.
-		self assert: item isEnabled
+		self deny: item isEnabled
 	] ensure: [
 		dir exists ifTrue: [ dir deleteAll ].
 		AbSettings initialize ]

@@ -19,7 +19,7 @@ Collaborators:
 
 Public API and Key Messages:
 - AbCritDaemon class>>forTopic: - Daemon for one topic.
-- #isAvailable / #unavailableReason / #refusalReasonOnStart - Whether the control is shown (useCrit and .git) and whether a start may proceed.
+- #isAvailable / #unavailableReason / #refusalReasonOnStart - Whether the control is shown (useCrit and .git) and whether a start may proceed (only while the topic is #endTurn).
 - #isDaemonRunning - Whether crit status reports a running daemon; signals an AbCritError when the status does not report it, and lets a JSON parse Error through.
 - #startReviewForHost:ifStarted:ifFailed: - Synchronous start. ifStarted: receives the url and port. ifFailed: receives the reason.
 - #isAwaitingFirstFinish - Whether the first Finish result since the last successful start is still to be delivered.
@@ -155,7 +155,7 @@ AbCritDaemon >> unavailableReason [
 AbCritDaemon >> refusalReasonOnStart [
 
 	^ self unavailableReason ifNil: [
-		  self topic isInitial ifTrue: [ 'topic status is initial' ] ]
+		  self topic isEndTurn ifFalse: [ 'topic status is ' , self topic status ] ]
 ]
 
 { #category : 'operations' }

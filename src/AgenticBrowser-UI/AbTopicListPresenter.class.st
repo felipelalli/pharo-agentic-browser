@@ -51,7 +51,7 @@ AbTopicListPresenter >> addReviewByCritGroupTo: aMenu for: aTopic [
 		group addItem: [ :item |
 			item
 				name: 'Review by crit';
-				enabled: aTopic isInitial not;
+				enabled: aTopic critDaemon refusalReasonOnStart isNil;
 				action: [ self onReviewByCritRequest ] ] ]
 ]
 
