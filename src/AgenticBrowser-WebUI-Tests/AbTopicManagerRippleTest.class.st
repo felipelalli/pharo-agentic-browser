@@ -1278,7 +1278,9 @@ AbTopicManagerRippleTest >> withCritTopicWithoutConfigDo: aBlock [
 	(dir / '.git') ensureCreateDirectory.
 	topic := self newTopic: 'crit'.
 	topic workingDirectoryPath: dir fullName.
-	topic stateMachine handleEvent: #promptSent.
+	topic stateMachine
+		handleEvent: #promptSent;
+		handleEvent: #turnEnded.
 	ripple topicManager addTopic: topic.
 	[ aBlock value: topic ] ensure: [
 		dir exists ifTrue: [ dir deleteAll ].
@@ -1457,5 +1459,5 @@ AbTopicManagerRippleTest >> testStartCritPushesFailureWithoutChangingStatus [
 		self assert: pushes size equals: 1.
 		self assert: ((pushes first at: 'body') at: 'reason') equals: 'crit status failed (is crit on PATH?)'.
 		self assert: ((pushes first at: 'body') at: 'topicId') equals: topic topicId.
-		self assert: topic isWorking ]
+		self assert: topic isEndTurn ]
 ]
