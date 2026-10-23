@@ -240,19 +240,21 @@ AbCritDaemon >> startTimeoutReason [
 { #category : 'private' }
 AbCritDaemon >> firstLogLineSinceSpawn [
 
-	^ self logContentsSinceSpawn lines
-		  detect: [ :each | each trimBoth notEmpty ]
-		  ifFound: [ :each | each trimBoth ]
+	^ (self logContentsSinceSpawn lines collect: [ :each | each trimBoth ])
+		  detect: [ :each | each notEmpty ]
 		  ifNone: [ nil ]
 ]
 
 { #category : 'private' }
 AbCritDaemon >> logContentsSinceSpawn [
+	"crit owns the log, so it may have shrunk since the spawn or end in a partial UTF-8 sequence; answer empty then."
 
 	(self logSizeBeforeSpawn notNil and: [ self logFile exists ]) ifFalse: [ ^ '' ].
-	^ self logFile binaryReadStreamDo: [ :stream |
-		  stream position: self logSizeBeforeSpawn.
-		  stream upToEnd utf8Decoded ]
+	^ [ self logFile binaryReadStreamDo: [ :stream |
+		    stream position: self logSizeBeforeSpawn.
+		    stream upToEnd utf8Decoded ] ]
+		  on: Error
+		  do: [ '' ]
 ]
 
 { #category : 'private' }
