@@ -314,6 +314,26 @@ AbCritDaemonTest >> testStartReviewTimesOutWhenDaemonNeverRuns [
 ]
 
 { #category : 'tests' }
+AbCritDaemonTest >> testStartReviewTimeoutReportsCritOutputOfThisSpawn [
+
+	| topic daemon reason |
+	topic := self readyTopicNamed: 'no-changes'.
+	daemon := self daemonFor: topic.
+	daemon logFile ensureDelete.
+	self appendLog: 'Output of an earlier spawn' of: daemon.
+	daemon commandBlock: [ :cmd |
+		(cmd beginsWith: 'crit status')
+			ifTrue: [ '{"daemon":{"running":false}}' ]
+			ifFalse: [ self appendLog: 'No changed files found.\\  crit  review changed files' withCRs of: daemon ] ].
+	[ daemon
+		startReviewForHost: 'localhost'
+		ifStarted: [ :url :port | self fail: url ]
+		ifFailed: [ :failed | reason := failed ] ]
+		ensure: [ daemon logFile ensureDelete ].
+	self assert: reason equals: 'crit did not start within 0 seconds on port 9080: No changed files found.'
+]
+
+{ #category : 'tests' }
 AbCritDaemonTest >> testIsDaemonRunningSignalsCritErrorWhenStatusLacksRunning [
 
 	| daemon error |
@@ -522,6 +542,18 @@ AbCritDaemonTest >> testOverlappingStartsSpawnOnce [
 	self assert: (done waitTimeoutSeconds: 2) equals: false.
 	self assert: (self spawnCount: first) + (self spawnCount: second) equals: 1 ]
 		ensure: [ release signal ]
+]
+
+{ #category : 'private' }
+AbCritDaemonTest >> appendLog: aString of: aDaemon [
+
+	aDaemon logFile parent ensureCreateDirectory.
+	aDaemon logFile writeStreamDo: [ :stream |
+		stream
+			setToEnd;
+			nextPutAll: aString;
+			lf ].
+	^ ''
 ]
 
 { #category : 'private' }
