@@ -290,6 +290,23 @@ AbTopicListPresenterTest >> prepareCritDirectory [
 ]
 
 { #category : 'tests' }
+AbTopicListPresenterTest >> testOpenCritReviewUrlOpensWebBrowser [
+
+	| opener |
+	opener := MockObject new.
+	opener on: #open: with: 'http://localhost:9080/'.
+	presenter webBrowserOpener: opener.
+	presenter openCritReviewUrl: 'http://localhost:9080/'.
+	opener verifyIn: self
+]
+
+{ #category : 'tests' }
+AbTopicListPresenterTest >> testWebBrowserOpenerDefaultsToAbWebBrowserOpener [
+
+	self assert: presenter webBrowserOpener class equals: AbWebBrowserOpener
+]
+
+{ #category : 'tests' }
 AbTopicListPresenterTest >> testReviewByCritIsEnabledWithoutCritConfig [
 
 	| dir item |

@@ -14,6 +14,7 @@ Collaborators:
 - AbSettingsPresenter: I open it via #openOnTopic: for per-topic settings editing.
 - AbNewTopicDialog / AbSetAgentDialog / AbPackagePrefixesDialog: I open these dialogs for the relevant context-menu actions.
 - AbChatPresenter: Indirectly notified via the onTopicSelected callback set by AbBrowserPresenter.
+- AbWebBrowserOpener: I open the crit review URL in the web browser when a review starts.
 
 Public API and Key Messages:
 - #onTopicSelected: - Register a one-argument block called when the user selects a topic.
@@ -24,6 +25,7 @@ Internal Representation:
 - sortMode - Symbol (#title or #lastUpdated) controlling current sort order.
 - onTopicSelectedBlock - Optional callback block; receives the selected AbTopic.
 - topicManager - The AbTopicManager to use; defaults lazily to AbTopicManager default.
+- webBrowserOpener - The object answering #open: for URLs; defaults lazily to AbWebBrowserOpener.
 "
 Class {
 	#name : 'AbTopicListPresenter',
@@ -34,7 +36,8 @@ Class {
 		'newTopicButton',
 		'onTopicSelectedBlock',
 		'sortMode',
-		'topicManager'
+		'topicManager',
+		'webBrowserOpener'
 	],
 	#category : 'AgenticBrowser-UI',
 	#package : 'AgenticBrowser-UI'
@@ -187,8 +190,14 @@ AbTopicListPresenter >> onReviewByCritRequest [
 	topic ifNil: [ ^ self ].
 	[ topic critDaemon
 		startReviewForHost: 'localhost'
-		ifStarted: [ :url :port | ]
+		ifStarted: [ :url :port | self openCritReviewUrl: url ]
 		ifFailed: [ :reason | ] ] forkAt: Processor userBackgroundPriority
+]
+
+{ #category : 'private' }
+AbTopicListPresenter >> openCritReviewUrl: urlString [
+
+	self webBrowserOpener open: urlString
 ]
 
 { #category : 'private' }
@@ -497,4 +506,16 @@ AbTopicListPresenter >> unsubscribeFromTopicManager [
 	self topicManager topicsDo: [ :t |
 		t announcer unsubscribe: self ].
 	self topicManager announcer unsubscribe: self
+]
+
+{ #category : 'accessing' }
+AbTopicListPresenter >> webBrowserOpener [
+
+	^ webBrowserOpener ifNil: [ webBrowserOpener := AbWebBrowserOpener new ]
+]
+
+{ #category : 'accessing' }
+AbTopicListPresenter >> webBrowserOpener: anOpener [
+
+	webBrowserOpener := anOpener
 ]
