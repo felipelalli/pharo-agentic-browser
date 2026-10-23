@@ -314,6 +314,43 @@ AbCritDaemonTest >> testStartReviewTimesOutWhenDaemonNeverRuns [
 ]
 
 { #category : 'tests' }
+AbCritDaemonTest >> testStartReviewTimeoutReportsCritOutputOfThisSpawn [
+
+	| daemon reason |
+	daemon := self daemonFor: (self readyTopicNamed: 'no-changes').
+	daemon logFile ensureDelete.
+	self appendLog: 'Output of an earlier spawn' of: daemon.
+	reason := self timeoutReasonOf: daemon onSpawn: [
+		          self appendLog: 'No changed files found.\\  crit  review changed files' withCRs of: daemon ].
+	self assert: reason equals: 'crit did not start within 0 seconds on port 9080: No changed files found.'
+]
+
+{ #category : 'tests' }
+AbCritDaemonTest >> testStartReviewTimeoutSuggestsPortConflictWhenLogShrankSinceSpawn [
+
+	| daemon reason |
+	daemon := self daemonFor: (self readyTopicNamed: 'shrunk-log').
+	daemon logFile ensureDelete.
+	self appendLog: 'Output of an earlier spawn' of: daemon.
+	reason := self timeoutReasonOf: daemon onSpawn: [
+		          daemon logFile ensureDelete.
+		          self appendLog: 'x' of: daemon ].
+	self assert: reason equals: 'crit did not start within 0 seconds on port 9080 (the port may be in use by another process)'
+]
+
+{ #category : 'tests' }
+AbCritDaemonTest >> testStartReviewTimeoutSuggestsPortConflictWhenLogIsInvalidUtf8 [
+
+	| daemon reason |
+	daemon := self daemonFor: (self readyTopicNamed: 'invalid-utf8-log').
+	daemon logFile ensureDelete.
+	daemon logFile parent ensureCreateDirectory.
+	reason := self timeoutReasonOf: daemon onSpawn: [
+		          daemon logFile binaryWriteStreamDo: [ :stream | stream nextPutAll: #[ 16rE3 16r81 ] ] ].
+	self assert: reason equals: 'crit did not start within 0 seconds on port 9080 (the port may be in use by another process)'
+]
+
+{ #category : 'tests' }
 AbCritDaemonTest >> testIsDaemonRunningSignalsCritErrorWhenStatusLacksRunning [
 
 	| daemon error |
@@ -522,6 +559,36 @@ AbCritDaemonTest >> testOverlappingStartsSpawnOnce [
 	self assert: (done waitTimeoutSeconds: 2) equals: false.
 	self assert: (self spawnCount: first) + (self spawnCount: second) equals: 1 ]
 		ensure: [ release signal ]
+]
+
+{ #category : 'private' }
+AbCritDaemonTest >> appendLog: aString of: aDaemon [
+
+	aDaemon logFile parent ensureCreateDirectory.
+	aDaemon logFile writeStreamDo: [ :stream |
+		stream
+			setToEnd;
+			nextPutAll: aString;
+			lf ].
+	^ ''
+]
+
+{ #category : 'private' }
+AbCritDaemonTest >> timeoutReasonOf: aDaemon onSpawn: aBlock [
+
+	| reason |
+	aDaemon commandBlock: [ :cmd |
+		(cmd beginsWith: 'crit status')
+			ifTrue: [ '{"daemon":{"running":false}}' ]
+			ifFalse: [
+				aBlock value.
+				'' ] ].
+	[ aDaemon
+		startReviewForHost: 'localhost'
+		ifStarted: [ :url :port | self fail: url ]
+		ifFailed: [ :failed | reason := failed ] ]
+		ensure: [ aDaemon logFile ensureDelete ].
+	^ reason
 ]
 
 { #category : 'private' }
