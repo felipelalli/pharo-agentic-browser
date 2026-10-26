@@ -58,6 +58,7 @@ The core workflow:
 - **Topic template** — seed every new topic's working directory from `topic-template`, so coding-agent config (`CLAUDE.md`, `AGENTS.md`, `.claude`, `.opencode`, etc.) doesn't need to be set up per topic
 - **Multiple package prefixes** — track multiple package families (e.g. `#('ACP-*' 'BaselineOfACP')`) per topic
 - **Image change watching** — `AbTopicRelatedPackagesWatcher` monitors image changes, inserts system messages into chat, and asks for confirmation before synching packages
+- **Code review with crit** — review the agent's changes in the browser with [crit](https://github.com/tomasz-tomczyk/crit); review comments are fed back to the agent in the topic
 - **Web UI** — browser-based interface via WebSocket ([docs/web-ui.md](docs/web-ui.md))
 - **Scripting API** — headless DSL for coordinating multiple topics from code; supports sequential and parallel steps with automatic result injection ([docs/scripting.md](docs/scripting.md))
 
@@ -263,7 +264,11 @@ Watching starts automatically when a topic first connects (on the first **Send**
 
 ### Code Review with crit
 
-When `useCrit` is `true` and the topic's working directory is a git repository, right-click the topic and choose **Review by crit** to review the agent's changes in [crit](https://github.com/tomasz-tomczyk/crit).
+[crit](https://github.com/tomasz-tomczyk/crit) is a tool for reviewing changed files from a web browser. With the crit integration, you can start crit from AgenticBrowser through a menu (or a button in the Web UI) instead of running it yourself. When you finish a review, the agent picks up your comments and its responses flow into the topic's conversation in AgenticBrowser.
+
+crit review is disabled by default. To enable it, check **Use crit review** in the Settings dialog (or set `useCrit` to `true` in `ab-settings.json`), and make sure the `crit` command is on your `PATH`.
+
+When `useCrit` is `true` and the topic's working directory is a git repository, right-click the topic and choose **Review by crit** to review the agent's changes in crit.
 
 AgenticBrowser adds `on_finish_unresolved` / `on_finish_approved` hooks to the directory's `.crit.config.json`. When you press **Finish** for the first time after starting the review, the hook saves the result under `<imageDir>/agentic-browser/crit-results/`, and AgenticBrowser sends crit's review prompt to the topic once the agent's turn has ended (it checks every `monitoringIntervalSeconds`). The prompt ends with `crit --session <id>`, so from then on the agent receives later rounds from crit itself. An approval on the first Finish is shown as a system message instead.
 
@@ -369,7 +374,7 @@ Settings are managed by `AbSettings` and persisted as `ab-settings.json` in the 
 
 ### Global Settings
 
-Open the Settings dialog from the **Settings…** menu in the browser window's menu bar. The dialog covers timeout values, timeout options, and MCP server preferences.
+Open the Settings dialog from the **Settings…** menu in the browser window's menu bar. The dialog covers timeout values, timeout options, MCP server preferences, and crit review settings.
 
 | Key | Default | Description |
 |-----|---------|-------------|
@@ -385,10 +390,15 @@ Open the Settings dialog from the **Settings…** menu in the browser window's m
 | `useCommandOnGoalSet` | `false` | Prefix the goal notification prompt with `goalSetCommand` |
 | `goalSetCommand` | `'/goal'` | Command prefix used when `useCommandOnGoalSet` is true |
 | `monitoringIntervalSeconds` | `15` | Seconds between the periodic topic checks (e.g. resuming stalled goal topics). Formerly `stallMonitoringIntervalSeconds`; an `ab-settings.json` with the old key is still read, and is saved with the new key |
+| `useCrit` | `false` | Offer **Review by crit** for topics whose working directory is a git repository (**Use crit review** in the Settings dialog) |
+| `critAllowUnauthenticatedNetwork` | `true` | Let crit accept unauthenticated access from other hosts in the LAN; when `false`, crit binds to localhost only (**Allow crit access within LAN** in the Settings dialog) |
+| `critPortRange` | `'9080-9100'` | Inclusive port range (`<low>-<high>`, 1-65535) from which a free port is picked when crit starts |
 
 ### Per-Topic Settings
 
 Each topic starts with a copy of the global settings. Right-click a topic in the sidebar and choose **Edit Settings...** to open the settings dialog for that topic alone.
+
+The crit settings are global only; they are hidden in the per-topic settings dialog because crit reads only the global settings.
 
 Per-topic settings are persisted with the topic via Fuel when `AbTopicManager save` is called.
 
