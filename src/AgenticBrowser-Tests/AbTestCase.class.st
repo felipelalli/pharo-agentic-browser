@@ -1,6 +1,9 @@
 Class {
 	#name : 'AbTestCase',
 	#superclass : 'TestCase',
+	#instVars : [
+		'originalAnnouncer'
+	],
 	#category : 'AgenticBrowser-Tests',
 	#package : 'AgenticBrowser-Tests'
 }
@@ -8,6 +11,9 @@ Class {
 { #category : 'running' }
 AbTestCase >> setUp [
 
+	"Swap in a private announcer so AbTopicManagerLoaded announcements in tests do not switch open topic lists or Web UI ripples to a throwaway manager."
+	self originalAnnouncer: AbTopicManager announcer.
+	AbTopicManager announcer: Announcer new.
 	AbTopicManager forTest: AbTopicManager new.
 	AbCritConfigFile topicManager: AbTopicManager forTest
 ]
@@ -22,7 +28,20 @@ AbTestCase >> tearDown [
 			dir exists ifTrue: [ dir deleteAll ] ] ].
 	AbTopicManager forTest: nil.
 	AbCritConfigFile topicManager: nil.
+	AbTopicManager announcer: self originalAnnouncer.
 	self cleanupTestDirectories
+]
+
+{ #category : 'accessing' }
+AbTestCase >> originalAnnouncer [
+
+	^ originalAnnouncer
+]
+
+{ #category : 'accessing' }
+AbTestCase >> originalAnnouncer: anAnnouncer [
+
+	originalAnnouncer := anAnnouncer
 ]
 
 { #category : 'running' }
