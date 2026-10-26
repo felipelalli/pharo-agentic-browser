@@ -174,6 +174,7 @@ AbSettingsTest >> testAsFullJsonDictionaryContainsAllAccessingKeys [
 	self assert: (dict includesKey: 'monitoringIntervalSeconds').
 	self assert: (dict includesKey: 'useCrit').
 	self assert: (dict includesKey: 'critPortRange').
+	self assert: (dict includesKey: 'critAllowUnauthenticatedNetwork').
 	self deny: (dict includesKey: 'watcherMessageThrottleDuration').
 	self deny: (dict includesKey: 'stallMonitoringIntervalSeconds').
 	self deny: (dict includesKey: 'critPortInterval')
@@ -381,6 +382,40 @@ AbSettingsTest >> testDefaultCopiedUnsetCritSettingsFallBackToDefault [
 	copied := AbSettings defaultCopied.
 	self assert: copied useCrit.
 	self assert: copied critPortRange equals: '9101-9102'
+]
+
+{ #category : 'tests' }
+AbSettingsTest >> testCritAllowUnauthenticatedNetworkDefaultIsTrue [
+
+	self assert: AbSettings default critAllowUnauthenticatedNetwork
+]
+
+{ #category : 'tests' }
+AbSettingsTest >> testCritAllowUnauthenticatedNetworkSettable [
+
+	| settings |
+	settings := AbSettings defaultCopied.
+	settings critAllowUnauthenticatedNetwork: false.
+	self deny: settings critAllowUnauthenticatedNetwork
+]
+
+{ #category : 'tests' }
+AbSettingsTest >> testDefaultCopiedUnsetCritAllowUnauthenticatedNetworkFallsBackToDefault [
+
+	AbSettings default critAllowUnauthenticatedNetwork: false.
+	self deny: AbSettings defaultCopied critAllowUnauthenticatedNetwork
+]
+
+{ #category : 'tests' }
+AbSettingsTest >> testCritAllowUnauthenticatedNetworkSurvivesSaveAndLoad [
+
+	| file settings loaded |
+	file := FileSystem memory root / 'ab-settings.json'.
+	settings := AbSettings new.
+	settings critAllowUnauthenticatedNetwork: false.
+	settings saveFullTo: file.
+	loaded := AbSettings loadFrom: file.
+	self deny: loaded critAllowUnauthenticatedNetwork
 ]
 
 { #category : 'tests' }

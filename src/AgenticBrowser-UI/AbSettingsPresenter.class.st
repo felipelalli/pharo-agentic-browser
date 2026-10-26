@@ -2,7 +2,7 @@
 I am a settings editor that presents and saves an AbSettings instance.
 
 Responsibility:
-- I display all editable AbSettings fields: watcher throttle, AI permission timeout, export approval timeout, their timeout-option drop-lists, MCP server checkbox, goal-settings command fields, the crit review checkbox, and the crit port range field.
+- I display all editable AbSettings fields: watcher throttle, AI permission timeout, export approval timeout, their timeout-option drop-lists, MCP server checkbox, goal-settings command fields, the crit review checkbox, the crit unauthenticated network access checkbox, and the crit port range field.
 - I validate the crit port range on save (reusing AbSettings>>critPortInterval); when it is invalid I write nothing, skip the saveAction, keep the window open, and show the expected format in a validation message label.
 - I support two entry points: editing the global default settings (via #openOnDefault) and editing a per-topic copy (via #openOnTopic:).
 - On save I invoke a configurable saveAction block; for the global path this writes ab-settings.json, for the topic path it replaces the topic's in-memory settings only.
@@ -16,7 +16,7 @@ Public API and Key Messages:
 - AbSettingsPresenter class>>openOnDefault - Open editor for the global AbSettings singleton; saves to ab-settings.json on confirm.
 - AbSettingsPresenter class>>openOnTopic: - Open editor for a topic's settings copy; replaces the topic's settings on confirm without a global save. The crit settings are hidden because crit reads only the global settings.
 - #saveAction: - Inject a custom save block (receives the edited AbSettings as argument).
-- #showsCritSettings: - Show or hide the crit review checkbox, port range field, and validation message (shown by default).
+- #showsCritSettings: - Show or hide the crit review checkbox, network access checkbox, port range field, and validation message (shown by default).
 
 Internal Representation:
 - saveAction - Block called with the edited AbSettings on save; defaults to a no-op.
@@ -39,6 +39,7 @@ Class {
 		'goalSetCommandField',
 		'useStBuddySkillOnInitialPromptCheckbox',
 		'useCritCheckbox',
+		'critAllowUnauthenticatedNetworkCheckbox',
 		'critPortRangeField',
 		'validationMessageLabel',
 		'showsCritSettings',
@@ -146,6 +147,11 @@ AbSettingsPresenter >> useCritCheckbox [
 ]
 
 { #category : 'accessing' }
+AbSettingsPresenter >> critAllowUnauthenticatedNetworkCheckbox [
+	^ critAllowUnauthenticatedNetworkCheckbox
+]
+
+{ #category : 'accessing' }
 AbSettingsPresenter >> critPortRangeField [
 	^ critPortRangeField
 ]
@@ -189,6 +195,7 @@ AbSettingsPresenter >> saveSettings [
 	self settings goalSetCommand: goalSetCommandField text.
 	self settings useStBuddySkillOnInitialPrompt: useStBuddySkillOnInitialPromptCheckbox state.
 	self settings useCrit: self useCritCheckbox state.
+	self settings critAllowUnauthenticatedNetwork: self critAllowUnauthenticatedNetworkCheckbox state.
 	self settings critPortRange: self critPortRangeField text.
 	self saveAction cull: self settings.
 	^ true
@@ -288,6 +295,10 @@ AbSettingsPresenter >> initializeCritSettingsPresenters [
 	useCritCheckbox label: 'Use crit review'.
 	useCritCheckbox state: self settings useCrit.
 
+	critAllowUnauthenticatedNetworkCheckbox := self newCheckBox.
+	critAllowUnauthenticatedNetworkCheckbox label: 'Allow unauthenticated network access to crit'.
+	critAllowUnauthenticatedNetworkCheckbox state: self settings critAllowUnauthenticatedNetwork.
+
 	critPortRangeField := self newTextInput.
 	critPortRangeField text: self settings critPortRange.
 
@@ -327,6 +338,7 @@ AbSettingsPresenter >> addGeneralSettingsTo: aBoxLayout [
 AbSettingsPresenter >> addCritSettingsTo: aBoxLayout [
 	aBoxLayout
 		add: self useCritCheckbox withConstraints: [ :c | c height: 28 ];
+		add: self critAllowUnauthenticatedNetworkCheckbox withConstraints: [ :c | c height: 28 ];
 		add: (self labeledRow: 'Crit port range:' field: self critPortRangeField);
 		add: self validationMessageLabel withConstraints: [ :c | c height: 20 ]
 ]
@@ -356,5 +368,5 @@ AbSettingsPresenter >> initializeWindow: aWindowPresenter [
 	super initializeWindow: aWindowPresenter.
 	aWindowPresenter
 		title: 'Settings';
-		initialExtent: 420 @ 520
+		initialExtent: 420 @ 550
 ]

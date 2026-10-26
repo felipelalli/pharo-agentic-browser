@@ -296,6 +296,33 @@ AbCritDaemonTest >> testStartReviewSpawnsThenReportsUrl [
 ]
 
 { #category : 'tests' }
+AbCritDaemonTest >> testSpawnAllowsUnauthenticatedNetworkAccessByDefault [
+
+	| daemon log |
+	daemon := self daemonFor: (self readyTopicNamed: 'network').
+	daemon spawn.
+	log := AbSettings defaultAgenticBrowserRootDirectory / 'crit-logs' / 'network.log'.
+	self assert: (self spawnCount: daemon) equals: 1.
+	self
+		assert: daemon executedCommands last
+		equals: 'crit --no-open --host 0.0.0.0 --allow-unauthenticated-network >> ' , log fullName shellQuoted , ' 2>&1 &'
+]
+
+{ #category : 'tests' }
+AbCritDaemonTest >> testSpawnBindsToLocalhostWhenUnauthenticatedNetworkAccessIsDisallowed [
+
+	| daemon log |
+	daemon := self daemonFor: (self readyTopicNamed: 'localhost').
+	AbSettings default critAllowUnauthenticatedNetwork: false.
+	daemon spawn.
+	log := AbSettings defaultAgenticBrowserRootDirectory / 'crit-logs' / 'localhost.log'.
+	self assert: (self spawnCount: daemon) equals: 1.
+	self
+		assert: daemon executedCommands last
+		equals: 'crit --no-open --host 127.0.0.1 >> ' , log fullName shellQuoted , ' 2>&1 &'
+]
+
+{ #category : 'tests' }
 AbCritDaemonTest >> testStartReviewTimesOutWhenDaemonNeverRuns [
 
 	| topic daemon reason log |
