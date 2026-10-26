@@ -2,7 +2,7 @@
 I am a settings editor that presents and saves an AbSettings instance.
 
 Responsibility:
-- I display all editable AbSettings fields: watcher throttle, AI permission timeout, export approval timeout, their timeout-option drop-lists, MCP server checkbox, goal-settings command fields, the crit review checkbox, the crit unauthenticated network access checkbox, and the crit port range field.
+- I display all editable AbSettings fields: watcher throttle, AI permission timeout, export approval timeout, their timeout-option drop-lists, MCP server checkbox, goal-settings command fields, the crit review checkbox, the crit LAN access checkbox, and the crit port range field.
 - I validate the crit port range on save (reusing AbSettings>>critPortInterval); when it is invalid I write nothing, skip the saveAction, keep the window open, and show the expected format in a validation message label.
 - I support two entry points: editing the global default settings (via #openOnDefault) and editing a per-topic copy (via #openOnTopic:).
 - On save I invoke a configurable saveAction block; for the global path this writes ab-settings.json, for the topic path it replaces the topic's in-memory settings only.
@@ -296,7 +296,7 @@ AbSettingsPresenter >> initializeCritSettingsPresenters [
 	useCritCheckbox state: self settings useCrit.
 
 	critAllowUnauthenticatedNetworkCheckbox := self newCheckBox.
-	critAllowUnauthenticatedNetworkCheckbox label: 'Allow unauthenticated network access to crit'.
+	critAllowUnauthenticatedNetworkCheckbox label: 'Allow crit access within LAN (other than localhost)'.
 	critAllowUnauthenticatedNetworkCheckbox state: self settings critAllowUnauthenticatedNetwork.
 
 	critPortRangeField := self newTextInput.
