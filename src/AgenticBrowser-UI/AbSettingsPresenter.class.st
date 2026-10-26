@@ -14,13 +14,15 @@ Collaborators:
 
 Public API and Key Messages:
 - AbSettingsPresenter class>>openOnDefault - Open editor for the global AbSettings singleton; saves to ab-settings.json on confirm.
-- AbSettingsPresenter class>>openOnTopic: - Open editor for a topic's settings copy; replaces the topic's settings on confirm without a global save.
+- AbSettingsPresenter class>>openOnTopic: - Open editor for a topic's settings copy; replaces the topic's settings on confirm without a global save. The crit settings are hidden because crit reads only the global settings.
 - #saveAction: - Inject a custom save block (receives the edited AbSettings as argument).
+- #showsCritSettings: - Show or hide the crit review checkbox, port range field, and validation message (shown by default).
 
 Internal Representation:
 - saveAction - Block called with the edited AbSettings on save; defaults to a no-op.
 - All field/widget instVars hold the Spec2 presenters for each individual setting.
 - validationMessageLabel - Label that is empty normally and explains the expected crit port range format after an invalid save attempt.
+- showsCritSettings - Whether the crit settings rows are laid out and the crit port range is checked on save.
 "
 Class {
 	#name : 'AbSettingsPresenter',
@@ -39,6 +41,7 @@ Class {
 		'useCritCheckbox',
 		'critPortRangeField',
 		'validationMessageLabel',
+		'showsCritSettings',
 		'saveButton',
 		'cancelButton'
 	],
@@ -65,6 +68,7 @@ AbSettingsPresenter class >> openOnTopic: aTopic [
 	presenter := self on: settingsCopy.
 	presenter saveAction: [ :editedSettings |
 		aTopic settings: editedSettings ].
+	presenter showsCritSettings: false.
 	presenter open.
 	^ presenter
 ]
@@ -77,6 +81,7 @@ AbSettingsPresenter >> settings [
 { #category : 'initialization' }
 AbSettingsPresenter >> initialize [
 	saveAction := [].
+	showsCritSettings := true.
 	super initialize
 ]
 
@@ -151,6 +156,16 @@ AbSettingsPresenter >> validationMessageLabel [
 ]
 
 { #category : 'accessing' }
+AbSettingsPresenter >> showsCritSettings [
+	^ showsCritSettings
+]
+
+{ #category : 'accessing' }
+AbSettingsPresenter >> showsCritSettings: aBoolean [
+	showsCritSettings := aBoolean
+]
+
+{ #category : 'accessing' }
 AbSettingsPresenter >> saveButton [
 	^ saveButton
 ]
@@ -162,8 +177,8 @@ AbSettingsPresenter >> cancelButton [
 
 { #category : 'actions' }
 AbSettingsPresenter >> saveSettings [
-	"Answer whether the settings were written; an invalid crit port range writes nothing and shows the expected format instead."
-	self isCritPortRangeValid ifFalse: [
+	"Answer whether the settings were written; an invalid crit port range writes nothing and shows the expected format instead. The range is not checked when the crit settings are hidden."
+	(self showsCritSettings and: [ self isCritPortRangeValid not ]) ifTrue: [
 		validationMessageLabel label: 'Crit port range must look like ' , self settings defaultCritPortRange , ' (1-65535).'.
 		^ false ].
 	validationMessageLabel label: ''.
@@ -270,7 +285,8 @@ AbSettingsPresenter >> initializePresenters [
 
 { #category : 'layout' }
 AbSettingsPresenter >> defaultLayout [
-	^ SpBoxLayout newTopToBottom
+	| layout |
+	layout := SpBoxLayout newTopToBottom
 		borderWidth: 10;
 		spacing: 6;
 		add: (self labeledRow: 'Watcher throttle (seconds):' field: watcherThrottleField);
@@ -282,11 +298,19 @@ AbSettingsPresenter >> defaultLayout [
 		add: useCommandOnGoalSetCheckbox withConstraints: [ :c | c height: 28 ];
 		add: (self labeledRow: 'Goal settings command:' field: goalSetCommandField);
 		add: useStBuddySkillOnInitialPromptCheckbox withConstraints: [ :c | c height: 28 ];
-		add: useCritCheckbox withConstraints: [ :c | c height: 28 ];
-		add: (self labeledRow: 'Crit port range:' field: critPortRangeField);
-		add: validationMessageLabel withConstraints: [ :c | c height: 20 ];
+		yourself.
+	self showsCritSettings ifTrue: [ self addCritSettingsTo: layout ].
+	^ layout
 		addLast: self actionButtonsLayout withConstraints: [ :c | c height: 34 ];
 		yourself
+]
+
+{ #category : 'layout' }
+AbSettingsPresenter >> addCritSettingsTo: aBoxLayout [
+	aBoxLayout
+		add: useCritCheckbox withConstraints: [ :c | c height: 28 ];
+		add: (self labeledRow: 'Crit port range:' field: critPortRangeField);
+		add: validationMessageLabel withConstraints: [ :c | c height: 20 ]
 ]
 
 { #category : 'layout' }

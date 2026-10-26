@@ -242,3 +242,38 @@ AbSettingsPresenterTest >> testSaveButtonClosesWindowWhenSettingsAreValid [
 	presenter saveButton click.
 	self deny: presenter window isOpen ] ensure: [ presenter window close ]
 ]
+
+{ #category : 'tests' }
+AbSettingsPresenterTest >> testCritSettingsAreShownByDefault [
+	self assert: presenter showsCritSettings.
+	self assert: (presenter layout allPresenters includes: presenter useCritCheckbox).
+	self assert: (presenter layout allPresenters includes: presenter critPortRangeField)
+]
+
+{ #category : 'tests' }
+AbSettingsPresenterTest >> testCritSettingsAreHiddenWhenNotShown [
+	presenter showsCritSettings: false.
+	self deny: (presenter layout allPresenters includes: presenter useCritCheckbox).
+	self deny: (presenter layout allPresenters includes: presenter critPortRangeField).
+	self deny: (presenter layout allPresenters includes: presenter validationMessageLabel)
+]
+
+{ #category : 'tests' }
+AbSettingsPresenterTest >> testSaveIgnoresInvalidCritPortRangeWhenCritSettingsAreHidden [
+	| s called |
+	s := AbSettings new.
+	s critPortRange: 'abc'.
+	presenter := AbSettingsPresenter on: s.
+	presenter showsCritSettings: false.
+	called := false.
+	presenter saveAction: [ called := true ].
+	self assert: presenter saveSettings.
+	self assert: called
+]
+
+{ #category : 'tests' }
+AbSettingsPresenterTest >> testOpenOnTopicHidesCritSettings [
+	| topicPresenter |
+	topicPresenter := AbSettingsPresenter openOnTopic: self newMockTopic.
+	[ self deny: topicPresenter showsCritSettings ] ensure: [ topicPresenter window close ]
+]
