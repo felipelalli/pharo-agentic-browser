@@ -404,3 +404,17 @@ AbSettingsTest >> testCritPortIntervalRejectsMalformedOrOutOfBoundsRanges [
 		AbSettings default critPortRange: each.
 		self assert: AbSettings default critPortInterval isNil ]
 ]
+
+{ #category : 'tests' }
+AbSettingsTest >> testCritSettingsSurviveSaveAndLoad [
+
+	| file settings loaded |
+	file := FileSystem memory root / 'ab-settings.json'.
+	settings := AbSettings new.
+	settings useCrit: true.
+	settings critPortRange: '9200-9210'.
+	settings saveFullTo: file.
+	loaded := AbSettings loadFrom: file.
+	self assert: loaded useCrit.
+	self assert: loaded critPortRange equals: '9200-9210'
+]
