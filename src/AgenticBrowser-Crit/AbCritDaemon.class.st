@@ -310,8 +310,9 @@ AbCritDaemon >> spawn [
 	self logSizeBeforeSpawn: (self logFile exists
 			 ifTrue: [ self logFile size ]
 			 ifFalse: [ 0 ]).
-	self runShellCommand: 'crit --no-open ' , self networkAccessArguments , ' >> '
-		, self logFile fullName shellQuoted , ' 2>&1 &'
+	self runShellCommand: ('crit --no-open {1} >> {2} 2>&1 &' format: {
+			 self networkAccessArguments.
+			 self logFile fullName shellQuoted })
 ]
 
 { #category : 'private' }

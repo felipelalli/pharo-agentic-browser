@@ -114,7 +114,9 @@ AbCritDaemonTest >> assertSpawnCommandForTopic: topicName expectedHostAndFlags: 
 	self assert: (self spawnCount: daemon) equals: 1.
 	self
 		assert: daemon executedCommands last
-		equals: 'crit --no-open ' , hostAndFlags , ' >> ' , log fullName shellQuoted , ' 2>&1 &'
+		equals: ('crit --no-open {1} >> {2} 2>&1 &' format: {
+				 hostAndFlags.
+				 log fullName shellQuoted })
 ]
 
 { #category : 'tests' }
