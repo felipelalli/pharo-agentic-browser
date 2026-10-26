@@ -177,11 +177,8 @@ AbSettingsPresenter >> cancelButton [
 
 { #category : 'actions' }
 AbSettingsPresenter >> saveSettings [
-	"Answer whether the settings were written; an invalid crit port range writes nothing and shows the expected format instead. The range is not checked when the crit settings are hidden."
-	(self showsCritSettings and: [ self isCritPortRangeValid not ]) ifTrue: [
-		validationMessageLabel label: 'Crit port range must look like ' , self settings defaultCritPortRange , ' (1-65535).'.
-		^ false ].
-	validationMessageLabel label: ''.
+	"Answer whether the settings were written; an invalid crit port range writes nothing and shows the expected format instead."
+	self validateCritPortRange ifFalse: [ ^ false ].
 	self settings watcherMessageThrottleSeconds: watcherThrottleField text asInteger.
 	self settings aiPermissionWaitTimeoutSeconds: aiTimeoutField text asInteger.
 	self settings exportApprovalWaitTimeoutSeconds: exportTimeoutField text asInteger.
@@ -191,16 +188,26 @@ AbSettingsPresenter >> saveSettings [
 	self settings useCommandOnGoalSet: useCommandOnGoalSetCheckbox state.
 	self settings goalSetCommand: goalSetCommandField text.
 	self settings useStBuddySkillOnInitialPrompt: useStBuddySkillOnInitialPromptCheckbox state.
-	self settings useCrit: useCritCheckbox state.
-	self settings critPortRange: critPortRangeField text.
+	self settings useCrit: self useCritCheckbox state.
+	self settings critPortRange: self critPortRangeField text.
 	self saveAction cull: self settings.
+	^ true
+]
+
+{ #category : 'private' }
+AbSettingsPresenter >> validateCritPortRange [
+	"Answer whether the crit port range can be saved, showing the expected format in the validation message when it cannot. The range is not checked when the crit settings are hidden."
+	(self showsCritSettings and: [ self isCritPortRangeValid not ]) ifTrue: [
+		self validationMessageLabel label: 'Crit port range must look like ' , self settings defaultCritPortRange , ' (1-65535).'.
+		^ false ].
+	self validationMessageLabel label: ''.
 	^ true
 ]
 
 { #category : 'private' }
 AbSettingsPresenter >> isCritPortRangeValid [
 	^ (AbSettings new
-		   critPortRange: critPortRangeField text;
+		   critPortRange: self critPortRangeField text;
 		   critPortInterval) notNil
 ]
 
@@ -264,15 +271,7 @@ AbSettingsPresenter >> initializePresenters [
 	useStBuddySkillOnInitialPromptCheckbox label: 'Use st-buddy skill on initial prompt'.
 	useStBuddySkillOnInitialPromptCheckbox state: self settings useStBuddySkillOnInitialPrompt.
 
-	useCritCheckbox := self newCheckBox.
-	useCritCheckbox label: 'Use crit review'.
-	useCritCheckbox state: self settings useCrit.
-
-	critPortRangeField := self newTextInput.
-	critPortRangeField text: self settings critPortRange.
-
-	validationMessageLabel := self newLabel.
-	validationMessageLabel label: ''.
+	self initializeCritSettingsPresenters.
 
 	saveButton := self newButton.
 	saveButton label: 'Save'.
@@ -283,22 +282,27 @@ AbSettingsPresenter >> initializePresenters [
 	cancelButton action: [ self window close ]
 ]
 
+{ #category : 'initialization' }
+AbSettingsPresenter >> initializeCritSettingsPresenters [
+	useCritCheckbox := self newCheckBox.
+	useCritCheckbox label: 'Use crit review'.
+	useCritCheckbox state: self settings useCrit.
+
+	critPortRangeField := self newTextInput.
+	critPortRangeField text: self settings critPortRange.
+
+	validationMessageLabel := self newLabel.
+	validationMessageLabel label: ''
+]
+
 { #category : 'layout' }
 AbSettingsPresenter >> defaultLayout [
 	| layout |
 	layout := SpBoxLayout newTopToBottom
 		borderWidth: 10;
 		spacing: 6;
-		add: (self labeledRow: 'Watcher throttle (seconds):' field: watcherThrottleField);
-		add: (self labeledRow: 'AI permission timeout (seconds):' field: aiTimeoutField);
-		add: (self labeledRow: 'AI timeout option:' field: aiTimeoutOptionDropList);
-		add: (self labeledRow: 'Export timeout (seconds):' field: exportTimeoutField);
-		add: (self labeledRow: 'Export timeout option:' field: exportTimeoutOptionDropList);
-		add: useDefaultMcpServersCheckbox withConstraints: [ :c | c height: 28 ];
-		add: useCommandOnGoalSetCheckbox withConstraints: [ :c | c height: 28 ];
-		add: (self labeledRow: 'Goal settings command:' field: goalSetCommandField);
-		add: useStBuddySkillOnInitialPromptCheckbox withConstraints: [ :c | c height: 28 ];
 		yourself.
+	self addGeneralSettingsTo: layout.
 	self showsCritSettings ifTrue: [ self addCritSettingsTo: layout ].
 	^ layout
 		addLast: self actionButtonsLayout withConstraints: [ :c | c height: 34 ];
@@ -306,11 +310,25 @@ AbSettingsPresenter >> defaultLayout [
 ]
 
 { #category : 'layout' }
+AbSettingsPresenter >> addGeneralSettingsTo: aBoxLayout [
+	aBoxLayout
+		add: (self labeledRow: 'Watcher throttle (seconds):' field: self watcherThrottleField);
+		add: (self labeledRow: 'AI permission timeout (seconds):' field: self aiTimeoutField);
+		add: (self labeledRow: 'AI timeout option:' field: self aiTimeoutOptionDropList);
+		add: (self labeledRow: 'Export timeout (seconds):' field: self exportTimeoutField);
+		add: (self labeledRow: 'Export timeout option:' field: self exportTimeoutOptionDropList);
+		add: self useDefaultMcpServersCheckbox withConstraints: [ :c | c height: 28 ];
+		add: self useCommandOnGoalSetCheckbox withConstraints: [ :c | c height: 28 ];
+		add: (self labeledRow: 'Goal settings command:' field: self goalSetCommandField);
+		add: self useStBuddySkillOnInitialPromptCheckbox withConstraints: [ :c | c height: 28 ]
+]
+
+{ #category : 'layout' }
 AbSettingsPresenter >> addCritSettingsTo: aBoxLayout [
 	aBoxLayout
-		add: useCritCheckbox withConstraints: [ :c | c height: 28 ];
-		add: (self labeledRow: 'Crit port range:' field: critPortRangeField);
-		add: validationMessageLabel withConstraints: [ :c | c height: 20 ]
+		add: self useCritCheckbox withConstraints: [ :c | c height: 28 ];
+		add: (self labeledRow: 'Crit port range:' field: self critPortRangeField);
+		add: self validationMessageLabel withConstraints: [ :c | c height: 20 ]
 ]
 
 { #category : 'layout' }

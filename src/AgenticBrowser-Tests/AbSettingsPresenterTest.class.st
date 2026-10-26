@@ -14,6 +14,16 @@ AbSettingsPresenterTest >> setUp [
 	presenter := AbSettingsPresenter on: AbSettings new
 ]
 
+{ #category : 'accessing' }
+AbSettingsPresenterTest >> presenter [
+	^ presenter
+]
+
+{ #category : 'accessing' }
+AbSettingsPresenterTest >> presenter: anAbSettingsPresenter [
+	presenter := anAbSettingsPresenter
+]
+
 { #category : 'running' }
 AbSettingsPresenterTest >> tearDown [
 	presenter release.
@@ -155,26 +165,26 @@ AbSettingsPresenterTest >> testSaveWritesUseStBuddySkillOnInitialPromptToSetting
 
 { #category : 'tests' }
 AbSettingsPresenterTest >> testUseCritCheckboxShowsDefaultValue [
-	self assert: presenter useCritCheckbox state equals: false
+	self assert: self presenter useCritCheckbox state equals: false
 ]
 
 { #category : 'tests' }
 AbSettingsPresenterTest >> testCritPortRangeFieldShowsDefaultValue [
-	self assert: presenter critPortRangeField text equals: '9080-9100'
+	self assert: self presenter critPortRangeField text equals: '9080-9100'
 ]
 
 { #category : 'tests' }
 AbSettingsPresenterTest >> testValidationMessageLabelIsEmptyInitially [
-	self assert: presenter validationMessageLabel label isEmpty
+	self assert: self presenter validationMessageLabel label isEmpty
 ]
 
 { #category : 'tests' }
 AbSettingsPresenterTest >> testSaveWritesUseCritToSettings [
 	| s |
 	s := AbSettings new.
-	presenter := AbSettingsPresenter on: s.
-	presenter useCritCheckbox state: true.
-	presenter saveSettings.
+	self presenter: (AbSettingsPresenter on: s).
+	self presenter useCritCheckbox state: true.
+	self presenter saveSettings.
 	self assert: s useCrit equals: true
 ]
 
@@ -182,9 +192,9 @@ AbSettingsPresenterTest >> testSaveWritesUseCritToSettings [
 AbSettingsPresenterTest >> testSaveWritesCritPortRangeToSettings [
 	| s |
 	s := AbSettings new.
-	presenter := AbSettingsPresenter on: s.
-	presenter critPortRangeField text: '9200-9210'.
-	presenter saveSettings.
+	self presenter: (AbSettingsPresenter on: s).
+	self presenter critPortRangeField text: '9200-9210'.
+	self presenter saveSettings.
 	self assert: s critPortRange equals: '9200-9210'
 ]
 
@@ -192,70 +202,70 @@ AbSettingsPresenterTest >> testSaveWritesCritPortRangeToSettings [
 AbSettingsPresenterTest >> testSaveWithInvalidCritPortRangeDoesNotWriteSettings [
 	| s |
 	s := AbSettings new.
-	presenter := AbSettingsPresenter on: s.
-	presenter useCritCheckbox state: true.
-	presenter critPortRangeField text: '9100-9080'.
-	presenter saveSettings.
+	self presenter: (AbSettingsPresenter on: s).
+	self presenter useCritCheckbox state: true.
+	self presenter critPortRangeField text: '9100-9080'.
+	self presenter saveSettings.
 	self assert: s critPortRange equals: '9080-9100'.
 	self assert: s useCrit equals: false
 ]
 
 { #category : 'tests' }
 AbSettingsPresenterTest >> testSaveWithInvalidCritPortRangeShowsValidationMessage [
-	presenter critPortRangeField text: 'abc'.
-	presenter saveSettings.
-	self assert: (presenter validationMessageLabel label includesSubstring: presenter settings defaultCritPortRange)
+	self presenter critPortRangeField text: 'abc'.
+	self presenter saveSettings.
+	self assert: (self presenter validationMessageLabel label includesSubstring: self presenter settings defaultCritPortRange)
 ]
 
 { #category : 'tests' }
 AbSettingsPresenterTest >> testSaveWithInvalidCritPortRangeDoesNotCallSaveAction [
 	| called |
 	called := false.
-	presenter saveAction: [ called := true ].
-	presenter critPortRangeField text: '9080-65536'.
-	presenter saveSettings.
+	self presenter saveAction: [ called := true ].
+	self presenter critPortRangeField text: '9080-65536'.
+	self presenter saveSettings.
 	self deny: called
 ]
 
 { #category : 'tests' }
 AbSettingsPresenterTest >> testSaveWithValidCritPortRangeClearsValidationMessage [
-	presenter critPortRangeField text: 'abc'.
-	presenter saveSettings.
-	presenter critPortRangeField text: '9080-9090'.
-	presenter saveSettings.
-	self assert: presenter validationMessageLabel label isEmpty
+	self presenter critPortRangeField text: 'abc'.
+	self presenter saveSettings.
+	self presenter critPortRangeField text: '9080-9090'.
+	self presenter saveSettings.
+	self assert: self presenter validationMessageLabel label isEmpty
 ]
 
 { #category : 'tests' }
 AbSettingsPresenterTest >> testSaveButtonKeepsWindowOpenWhenCritPortRangeIsInvalid [
-	presenter open.
+	self presenter open.
 	[
-	presenter critPortRangeField text: 'abc'.
-	presenter saveButton click.
-	self assert: presenter window isOpen ] ensure: [ presenter window close ]
+	self presenter critPortRangeField text: 'abc'.
+	self presenter saveButton click.
+	self assert: self presenter window isOpen ] ensure: [ self presenter window close ]
 ]
 
 { #category : 'tests' }
 AbSettingsPresenterTest >> testSaveButtonClosesWindowWhenSettingsAreValid [
-	presenter open.
+	self presenter open.
 	[
-	presenter saveButton click.
-	self deny: presenter window isOpen ] ensure: [ presenter window close ]
+	self presenter saveButton click.
+	self deny: self presenter window isOpen ] ensure: [ self presenter window close ]
 ]
 
 { #category : 'tests' }
 AbSettingsPresenterTest >> testCritSettingsAreShownByDefault [
-	self assert: presenter showsCritSettings.
-	self assert: (presenter layout allPresenters includes: presenter useCritCheckbox).
-	self assert: (presenter layout allPresenters includes: presenter critPortRangeField)
+	self assert: self presenter showsCritSettings.
+	self assert: (self presenter layout allPresenters includes: self presenter useCritCheckbox).
+	self assert: (self presenter layout allPresenters includes: self presenter critPortRangeField)
 ]
 
 { #category : 'tests' }
 AbSettingsPresenterTest >> testCritSettingsAreHiddenWhenNotShown [
-	presenter showsCritSettings: false.
-	self deny: (presenter layout allPresenters includes: presenter useCritCheckbox).
-	self deny: (presenter layout allPresenters includes: presenter critPortRangeField).
-	self deny: (presenter layout allPresenters includes: presenter validationMessageLabel)
+	self presenter showsCritSettings: false.
+	self deny: (self presenter layout allPresenters includes: self presenter useCritCheckbox).
+	self deny: (self presenter layout allPresenters includes: self presenter critPortRangeField).
+	self deny: (self presenter layout allPresenters includes: self presenter validationMessageLabel)
 ]
 
 { #category : 'tests' }
@@ -263,11 +273,11 @@ AbSettingsPresenterTest >> testSaveIgnoresInvalidCritPortRangeWhenCritSettingsAr
 	| s called |
 	s := AbSettings new.
 	s critPortRange: 'abc'.
-	presenter := AbSettingsPresenter on: s.
-	presenter showsCritSettings: false.
+	self presenter: (AbSettingsPresenter on: s).
+	self presenter showsCritSettings: false.
 	called := false.
-	presenter saveAction: [ called := true ].
-	self assert: presenter saveSettings.
+	self presenter saveAction: [ called := true ].
+	self assert: self presenter saveSettings.
 	self assert: called
 ]
 
