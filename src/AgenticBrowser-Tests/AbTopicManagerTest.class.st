@@ -530,6 +530,18 @@ AbTopicManagerTest >> testClassAnnouncerReturnsAnnouncer [
 ]
 
 { #category : 'tests' }
+AbTopicManagerTest >> testClassAnnouncerCanBeReplaced [
+
+	| originalAnnouncer privateAnnouncer |
+	originalAnnouncer := AbTopicManager announcer.
+	privateAnnouncer := Announcer new.
+	[
+	AbTopicManager announcer: privateAnnouncer.
+	self assert: AbTopicManager announcer == privateAnnouncer ]
+		ensure: [ AbTopicManager announcer: originalAnnouncer ]
+]
+
+{ #category : 'tests' }
 AbTopicManagerTest >> testIsMonitoringFalseByDefault [
 
 	self deny: AbTopicManager forTest isMonitoring
