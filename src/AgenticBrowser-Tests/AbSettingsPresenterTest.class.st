@@ -204,7 +204,7 @@ AbSettingsPresenterTest >> testSaveWithInvalidCritPortRangeDoesNotWriteSettings 
 AbSettingsPresenterTest >> testSaveWithInvalidCritPortRangeShowsValidationMessage [
 	presenter critPortRangeField text: 'abc'.
 	presenter saveSettings.
-	self assert: (presenter validationMessageLabel label includesSubstring: '9080-9100')
+	self assert: (presenter validationMessageLabel label includesSubstring: presenter settings defaultCritPortRange)
 ]
 
 { #category : 'tests' }

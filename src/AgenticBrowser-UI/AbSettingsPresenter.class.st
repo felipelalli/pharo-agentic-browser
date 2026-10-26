@@ -164,7 +164,7 @@ AbSettingsPresenter >> cancelButton [
 AbSettingsPresenter >> saveSettings [
 	"Answer whether the settings were written; an invalid crit port range writes nothing and shows the expected format instead."
 	self isCritPortRangeValid ifFalse: [
-		validationMessageLabel label: 'Crit port range must look like 9080-9100 (1-65535).'.
+		validationMessageLabel label: 'Crit port range must look like ' , self settings defaultCritPortRange , ' (1-65535).'.
 		^ false ].
 	validationMessageLabel label: ''.
 	self settings watcherMessageThrottleSeconds: watcherThrottleField text asInteger.
