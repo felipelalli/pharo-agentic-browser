@@ -2,9 +2,10 @@
 I am a settings editor that presents and saves an AbSettings instance.
 
 Responsibility:
-- I display all editable AbSettings fields: watcher throttle, AI permission timeout, export approval timeout, their timeout-option drop-lists, MCP server checkbox, and goal-settings command fields.
+- I display all editable AbSettings fields: watcher throttle, AI permission timeout, export approval timeout, their timeout-option drop-lists, MCP server checkbox, goal-settings command fields, the crit review checkbox, and the crit port range field.
+- I validate the crit port range on save (reusing AbSettings>>critPortInterval); when it is invalid I write nothing, skip the saveAction, keep the window open, and show the expected format in a validation message label.
 - I support two entry points: editing the global default settings (via #openOnDefault) and editing a per-topic copy (via #openOnTopic:).
-- On save I invoke a configurable saveAction block; for the global path this writes the fuel file, for the topic path it replaces the topic's in-memory settings only.
+- On save I invoke a configurable saveAction block; for the global path this writes ab-settings.json, for the topic path it replaces the topic's in-memory settings only.
 
 Collaborators:
 - AbSettings: I am the SpPresenterWithModel model; I read initial values from it and write back on save.
@@ -12,13 +13,14 @@ Collaborators:
 - AbTopicListPresenter: It opens me for per-topic settings via the ""Edit Settings..."" context menu item.
 
 Public API and Key Messages:
-- AbSettingsPresenter class>>openOnDefault - Open editor for the global AbSettings singleton; saves to fuel on confirm.
+- AbSettingsPresenter class>>openOnDefault - Open editor for the global AbSettings singleton; saves to ab-settings.json on confirm.
 - AbSettingsPresenter class>>openOnTopic: - Open editor for a topic's settings copy; replaces the topic's settings on confirm without a global save.
 - #saveAction: - Inject a custom save block (receives the edited AbSettings as argument).
 
 Internal Representation:
 - saveAction - Block called with the edited AbSettings on save; defaults to a no-op.
 - All field/widget instVars hold the Spec2 presenters for each individual setting.
+- validationMessageLabel - Label that is empty normally and explains the expected crit port range format after an invalid save attempt.
 "
 Class {
 	#name : 'AbSettingsPresenter',
@@ -34,6 +36,9 @@ Class {
 		'useCommandOnGoalSetCheckbox',
 		'goalSetCommandField',
 		'useStBuddySkillOnInitialPromptCheckbox',
+		'useCritCheckbox',
+		'critPortRangeField',
+		'validationMessageLabel',
 		'saveButton',
 		'cancelButton'
 	],
@@ -131,6 +136,21 @@ AbSettingsPresenter >> goalSetCommandField [
 ]
 
 { #category : 'accessing' }
+AbSettingsPresenter >> useCritCheckbox [
+	^ useCritCheckbox
+]
+
+{ #category : 'accessing' }
+AbSettingsPresenter >> critPortRangeField [
+	^ critPortRangeField
+]
+
+{ #category : 'accessing' }
+AbSettingsPresenter >> validationMessageLabel [
+	^ validationMessageLabel
+]
+
+{ #category : 'accessing' }
 AbSettingsPresenter >> saveButton [
 	^ saveButton
 ]
@@ -142,6 +162,11 @@ AbSettingsPresenter >> cancelButton [
 
 { #category : 'actions' }
 AbSettingsPresenter >> saveSettings [
+	"Answer whether the settings were written; an invalid crit port range writes nothing and shows the expected format instead."
+	self isCritPortRangeValid ifFalse: [
+		validationMessageLabel label: 'Crit port range must look like 9080-9100 (1-65535).'.
+		^ false ].
+	validationMessageLabel label: ''.
 	self settings watcherMessageThrottleSeconds: watcherThrottleField text asInteger.
 	self settings aiPermissionWaitTimeoutSeconds: aiTimeoutField text asInteger.
 	self settings exportApprovalWaitTimeoutSeconds: exportTimeoutField text asInteger.
@@ -151,7 +176,17 @@ AbSettingsPresenter >> saveSettings [
 	self settings useCommandOnGoalSet: useCommandOnGoalSetCheckbox state.
 	self settings goalSetCommand: goalSetCommandField text.
 	self settings useStBuddySkillOnInitialPrompt: useStBuddySkillOnInitialPromptCheckbox state.
-	self saveAction cull: self settings
+	self settings useCrit: useCritCheckbox state.
+	self settings critPortRange: critPortRangeField text.
+	self saveAction cull: self settings.
+	^ true
+]
+
+{ #category : 'private' }
+AbSettingsPresenter >> isCritPortRangeValid [
+	^ (AbSettings new
+		   critPortRange: critPortRangeField text;
+		   critPortInterval) notNil
 ]
 
 { #category : 'private' }
@@ -214,9 +249,19 @@ AbSettingsPresenter >> initializePresenters [
 	useStBuddySkillOnInitialPromptCheckbox label: 'Use st-buddy skill on initial prompt'.
 	useStBuddySkillOnInitialPromptCheckbox state: self settings useStBuddySkillOnInitialPrompt.
 
+	useCritCheckbox := self newCheckBox.
+	useCritCheckbox label: 'Use crit review'.
+	useCritCheckbox state: self settings useCrit.
+
+	critPortRangeField := self newTextInput.
+	critPortRangeField text: self settings critPortRange.
+
+	validationMessageLabel := self newLabel.
+	validationMessageLabel label: ''.
+
 	saveButton := self newButton.
 	saveButton label: 'Save'.
-	saveButton action: [ self saveSettings. self window close ].
+	saveButton action: [ self saveSettings ifTrue: [ self window close ] ].
 
 	cancelButton := self newButton.
 	cancelButton label: 'Cancel'.
@@ -237,6 +282,9 @@ AbSettingsPresenter >> defaultLayout [
 		add: useCommandOnGoalSetCheckbox withConstraints: [ :c | c height: 28 ];
 		add: (self labeledRow: 'Goal settings command:' field: goalSetCommandField);
 		add: useStBuddySkillOnInitialPromptCheckbox withConstraints: [ :c | c height: 28 ];
+		add: useCritCheckbox withConstraints: [ :c | c height: 28 ];
+		add: (self labeledRow: 'Crit port range:' field: critPortRangeField);
+		add: validationMessageLabel withConstraints: [ :c | c height: 20 ];
 		addLast: self actionButtonsLayout withConstraints: [ :c | c height: 34 ];
 		yourself
 ]
@@ -266,5 +314,5 @@ AbSettingsPresenter >> initializeWindow: aWindowPresenter [
 	super initializeWindow: aWindowPresenter.
 	aWindowPresenter
 		title: 'Settings';
-		initialExtent: 420 @ 420
+		initialExtent: 420 @ 520
 ]
