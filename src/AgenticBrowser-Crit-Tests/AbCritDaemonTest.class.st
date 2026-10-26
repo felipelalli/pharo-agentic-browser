@@ -104,6 +104,19 @@ AbCritDaemonTest >> spawnCount: aDaemon [
 	^ aDaemon executedCommands count: [ :each | each beginsWith: 'crit --no-open' ]
 ]
 
+{ #category : 'private' }
+AbCritDaemonTest >> assertSpawnCommandForTopic: topicName expectedHostAndFlags: hostAndFlags [
+
+	| daemon log |
+	daemon := self daemonFor: (self readyTopicNamed: topicName).
+	daemon spawn.
+	log := AbSettings defaultAgenticBrowserRootDirectory / 'crit-logs' / (topicName , '.log').
+	self assert: (self spawnCount: daemon) equals: 1.
+	self
+		assert: daemon executedCommands last
+		equals: 'crit --no-open ' , hostAndFlags , ' >> ' , log fullName shellQuoted , ' 2>&1 &'
+]
+
 { #category : 'tests' }
 AbCritDaemonTest >> testTopicCachesCritDaemon [
 
@@ -298,28 +311,18 @@ AbCritDaemonTest >> testStartReviewSpawnsThenReportsUrl [
 { #category : 'tests' }
 AbCritDaemonTest >> testSpawnAllowsUnauthenticatedNetworkAccessByDefault [
 
-	| daemon log |
-	daemon := self daemonFor: (self readyTopicNamed: 'network').
-	daemon spawn.
-	log := AbSettings defaultAgenticBrowserRootDirectory / 'crit-logs' / 'network.log'.
-	self assert: (self spawnCount: daemon) equals: 1.
 	self
-		assert: daemon executedCommands last
-		equals: 'crit --no-open --host 0.0.0.0 --allow-unauthenticated-network >> ' , log fullName shellQuoted , ' 2>&1 &'
+		assertSpawnCommandForTopic: 'network'
+		expectedHostAndFlags: '--host 0.0.0.0 --allow-unauthenticated-network'
 ]
 
 { #category : 'tests' }
 AbCritDaemonTest >> testSpawnBindsToLocalhostWhenUnauthenticatedNetworkAccessIsDisallowed [
 
-	| daemon log |
-	daemon := self daemonFor: (self readyTopicNamed: 'localhost').
 	AbSettings default critAllowUnauthenticatedNetwork: false.
-	daemon spawn.
-	log := AbSettings defaultAgenticBrowserRootDirectory / 'crit-logs' / 'localhost.log'.
-	self assert: (self spawnCount: daemon) equals: 1.
 	self
-		assert: daemon executedCommands last
-		equals: 'crit --no-open --host 127.0.0.1 >> ' , log fullName shellQuoted , ' 2>&1 &'
+		assertSpawnCommandForTopic: 'localhost'
+		expectedHostAndFlags: '--host 127.0.0.1'
 ]
 
 { #category : 'tests' }
