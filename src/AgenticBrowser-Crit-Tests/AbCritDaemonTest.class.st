@@ -328,6 +328,27 @@ AbCritDaemonTest >> testSpawnBindsToLocalhostWhenUnauthenticatedNetworkAccessIsD
 ]
 
 { #category : 'tests' }
+AbCritDaemonTest >> testReviewUrlUsesRequestedHostWhenUnauthenticatedNetworkAccessIsAllowed [
+
+	| daemon |
+	daemon := self daemonFor: (self readyTopicNamed: 'lan-url').
+	self
+		assert: (daemon reviewUrlForHost: '192.168.1.10')
+		equals: 'http://192.168.1.10:9080/'
+]
+
+{ #category : 'tests' }
+AbCritDaemonTest >> testReviewUrlUsesLocalhostWhenUnauthenticatedNetworkAccessIsDisallowed [
+
+	| daemon |
+	daemon := self daemonFor: (self readyTopicNamed: 'loopback-url').
+	AbSettings default critAllowUnauthenticatedNetwork: false.
+	self
+		assert: (daemon reviewUrlForHost: '192.168.1.10')
+		equals: 'http://localhost:9080/'
+]
+
+{ #category : 'tests' }
 AbCritDaemonTest >> testStartReviewTimesOutWhenDaemonNeverRuns [
 
 	| topic daemon reason log |
