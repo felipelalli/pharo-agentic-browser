@@ -592,7 +592,8 @@ AbTopicManagerTest >> testStartUpTrueStartsMonitoringAndWatching [
 { #category : 'tests' }
 AbTopicManagerTest >> testDefaultLoadedStopsPreviousMonitoring [
 
-	| oldManager newManager |
+	| originalDefault oldManager newManager |
+	originalDefault := AbTopicManager default.
 	oldManager := AbTopicManager new.
 	oldManager startMonitoring.
 	self assert: oldManager isMonitoring.
@@ -605,7 +606,7 @@ AbTopicManagerTest >> testDefaultLoadedStopsPreviousMonitoring [
 	self assert: newManager isMonitoring ]
 		ensure: [
 			newManager stopMonitoring.
-			AbTopicManager default: nil ]
+			AbTopicManager defaultLoaded: originalDefault ]
 ]
 
 { #category : 'tests' }
@@ -624,33 +625,30 @@ AbTopicManagerTest >> testDefaultLoadedSetsDefaultAndAnnouncesAbTopicManagerLoad
 	| originalDefault newManager received |
 	originalDefault := AbTopicManager default.
 	newManager := AbTopicManager new.
-	received := nil.
-	AbTopicManager announcer
-		when: AbTopicManagerLoaded
-		do: [ :ann | received := ann topicManager ]
-		for: self.
+	AbTopicManager announcer when: AbTopicManagerLoaded do: [ :ann | received := ann topicManager ] for: self.
+	"defaultLoaded: tears down the current default, so swap in a throwaway one to keep the original's topics connected."
+	AbTopicManager default: AbTopicManager new.
 	[
 	AbTopicManager defaultLoaded: newManager.
 	self assert: AbTopicManager default == newManager.
 	self assert: received == newManager ]
 		ensure: [
 			AbTopicManager announcer unsubscribe: self.
-			AbTopicManager default: originalDefault ]
+			AbTopicManager defaultLoaded: originalDefault ]
 ]
 
 { #category : 'tests' }
 AbTopicManagerTest >> testLoadAnnouncesAbTopicManagerLoaded [
+	"Use a private announcer: announcing on AbTopicManager announcer would switch open topic lists to newManager."
 
-	| received newManager |
+	| received newManager announcer |
 	received := nil.
 	newManager := AbTopicManager new.
-	AbTopicManager announcer
+	announcer := Announcer new.
+	announcer
 		when: AbTopicManagerLoaded
 		do: [ :ann | received := ann topicManager ]
 		for: self.
-	[
-	AbTopicManager announcer
-		announce: (AbTopicManagerLoaded topicManager: newManager) ]
-		ensure: [ AbTopicManager announcer unsubscribe: self ].
+	announcer announce: (AbTopicManagerLoaded topicManager: newManager).
 	self assert: received == newManager
 ]
