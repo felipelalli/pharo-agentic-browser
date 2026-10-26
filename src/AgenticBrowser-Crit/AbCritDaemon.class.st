@@ -8,18 +8,19 @@ Responsibility:
 - After every successful start I await the first finish: I delete the topic's stale result files and remember that the first result is still to be delivered. Later results reach the agent through crit itself.
 - I serialize all starts, across directories, so overlapping starts spawn once and never pick the same port.
 - I never stop crit, and I never signal to my caller.
+- When crit does not start in time, I report the first line crit wrote to the log since the spawn, or a possible port conflict when it wrote nothing.
 
 Collaborators:
 - AbTopic: I read its working directory, status, and logger, and I post the review message on it.
 - AbCritConfigFile: I ask it to ensure the port and the finish hooks before spawning, and read the port through one cached instance.
 - AbCritReviewFinishResultsManager: I ask it to delete my topic's result files when a start succeeds.
 - AbTopicSession: It caches me, one per topic.
-- AbSettings: I read #useCrit and the crit log directory.
+- AbSettings: I read #useCrit, #critAllowUnauthenticatedNetwork (bind to all interfaces with unauthenticated access, or to localhost only; the review URL host is always localhost when bind is loopback), and the crit log directory.
 - AbStubCritDaemon: Tests override #runShellCommand: so no process is spawned.
 
 Public API and Key Messages:
 - AbCritDaemon class>>forTopic: - Daemon for one topic.
-- #isAvailable / #unavailableReason / #refusalReasonOnStart - Whether the control is shown (useCrit and .git) and whether a start may proceed.
+- #isAvailable / #unavailableReason / #refusalReasonOnStart - Whether the control is shown (useCrit and .git) and whether a start may proceed (only while the topic is #endTurn).
 - #isDaemonRunning - Whether crit status reports a running daemon; signals an AbCritError when the status does not report it, and lets a JSON parse Error through.
 - #startReviewForHost:ifStarted:ifFailed: - Synchronous start. ifStarted: receives the url and port. ifFailed: receives the reason.
 - #isAwaitingFirstFinish - Whether the first Finish result since the last successful start is still to be delivered.
@@ -29,6 +30,7 @@ Internal Representation:
 - configFile - Lazily created AbCritConfigFile for the working directory; reset before ensuring the port so the file is read again.
 - pollAttemptsUntilRunning / pollDelayUntilRunning - How many status checks to make, and the pause between them. Defaults are 20 and 500 ms.
 - awaitingFirstFinish - True from a successful start until the first result is delivered. Not persisted (AbTopicSession excludes me from Fuel), so after an image restart the user starts the review again.
+- logSizeBeforeSpawn - Byte size of the log file just before the last spawn, so a start timeout reports only what that spawn wrote (e.g. crit's 'No changed files found.').
 - launchMutex (class) - One Mutex for all directories, covering status, port selection, spawn, and poll.
 "
 Class {
@@ -39,7 +41,8 @@ Class {
 		'configFile',
 		'pollAttemptsUntilRunning',
 		'pollDelayUntilRunning',
-		'awaitingFirstFinish'
+		'awaitingFirstFinish',
+		'logSizeBeforeSpawn'
 	],
 	#classInstVars : [
 		'launchMutex'
@@ -131,6 +134,18 @@ AbCritDaemon >> awaitingFirstFinish: aBoolean [
 	awaitingFirstFinish := aBoolean
 ]
 
+{ #category : 'accessing' }
+AbCritDaemon >> logSizeBeforeSpawn [
+
+	^ logSizeBeforeSpawn
+]
+
+{ #category : 'accessing' }
+AbCritDaemon >> logSizeBeforeSpawn: anInteger [
+
+	logSizeBeforeSpawn := anInteger
+]
+
 { #category : 'testing' }
 AbCritDaemon >> isAwaitingFirstFinish [
 
@@ -155,7 +170,7 @@ AbCritDaemon >> unavailableReason [
 AbCritDaemon >> refusalReasonOnStart [
 
 	^ self unavailableReason ifNil: [
-		  self topic isInitial ifTrue: [ 'topic status is initial' ] ]
+		  self topic isEndTurn ifFalse: [ 'topic status is ' , self topic status ] ]
 ]
 
 { #category : 'operations' }
@@ -214,8 +229,32 @@ AbCritDaemon >> awaitFirstFinish [
 { #category : 'private' }
 AbCritDaemon >> startTimeoutReason [
 
-	^ 'crit did not start within {1} seconds on port {2} (the port may be in use by another process)'
-		format: { self pollBudget asSeconds. self configFile port }
+	| prefix |
+	prefix := 'crit did not start within {1} seconds on port {2}'
+		format: { self pollBudget asSeconds. self configFile port }.
+	^ self firstLogLineSinceSpawn
+		  ifNil: [ prefix , ' (the port may be in use by another process)' ]
+		  ifNotNil: [ :line | prefix , ': ' , line ]
+]
+
+{ #category : 'private' }
+AbCritDaemon >> firstLogLineSinceSpawn [
+
+	^ (self logContentsSinceSpawn lines collect: [ :each | each trimBoth ])
+		  detect: [ :each | each notEmpty ]
+		  ifNone: [ nil ]
+]
+
+{ #category : 'private' }
+AbCritDaemon >> logContentsSinceSpawn [
+	"crit owns the log, so it may have shrunk since the spawn or end in a partial UTF-8 sequence; answer empty then."
+
+	(self logSizeBeforeSpawn notNil and: [ self logFile exists ]) ifFalse: [ ^ '' ].
+	^ [ self logFile binaryReadStreamDo: [ :stream |
+		    stream position: self logSizeBeforeSpawn.
+		    stream upToEnd utf8Decoded ] ]
+		  on: Error
+		  do: [ '' ]
 ]
 
 { #category : 'private' }
@@ -268,8 +307,20 @@ AbCritDaemon >> isDaemonRunning [
 AbCritDaemon >> spawn [
 
 	self logFile parent ensureCreateDirectory.
-	self runShellCommand: 'crit --no-open --host 0.0.0.0 --allow-unauthenticated-network >> '
-		, self logFile fullName shellQuoted , ' 2>&1 &'
+	self logSizeBeforeSpawn: (self logFile exists
+			 ifTrue: [ self logFile size ]
+			 ifFalse: [ 0 ]).
+	self runShellCommand: ('crit --no-open {1} >> {2} 2>&1 &' format: {
+			 self networkAccessArguments.
+			 self logFile fullName shellQuoted })
+]
+
+{ #category : 'private' }
+AbCritDaemon >> networkAccessArguments [
+
+	^ AbSettings default critAllowUnauthenticatedNetwork
+		  ifTrue: [ '--host 0.0.0.0 --allow-unauthenticated-network' ]
+		  ifFalse: [ '--host 127.0.0.1' ]
 ]
 
 { #category : 'private' }
@@ -285,8 +336,16 @@ AbCritDaemon >> waitUntilRunning [
 AbCritDaemon >> reviewUrlForHost: aHostString [
 
 	^ 'http://{1}:{2}/' format: {
-			  aHostString.
+			  self reviewHostFor: aHostString.
 			  self configFile port }
+]
+
+{ #category : 'private' }
+AbCritDaemon >> reviewHostFor: aHostString [
+
+	^ AbSettings default critAllowUnauthenticatedNetwork
+		  ifTrue: [ aHostString ]
+		  ifFalse: [ 'localhost' ]
 ]
 
 { #category : 'private' }

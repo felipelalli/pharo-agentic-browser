@@ -174,6 +174,7 @@ AbSettingsTest >> testAsFullJsonDictionaryContainsAllAccessingKeys [
 	self assert: (dict includesKey: 'monitoringIntervalSeconds').
 	self assert: (dict includesKey: 'useCrit').
 	self assert: (dict includesKey: 'critPortRange').
+	self assert: (dict includesKey: 'critAllowUnauthenticatedNetwork').
 	self deny: (dict includesKey: 'watcherMessageThrottleDuration').
 	self deny: (dict includesKey: 'stallMonitoringIntervalSeconds').
 	self deny: (dict includesKey: 'critPortInterval')
@@ -384,6 +385,40 @@ AbSettingsTest >> testDefaultCopiedUnsetCritSettingsFallBackToDefault [
 ]
 
 { #category : 'tests' }
+AbSettingsTest >> testCritAllowUnauthenticatedNetworkDefaultIsTrue [
+
+	self assert: AbSettings default critAllowUnauthenticatedNetwork
+]
+
+{ #category : 'tests' }
+AbSettingsTest >> testCritAllowUnauthenticatedNetworkSettable [
+
+	| settings |
+	settings := AbSettings defaultCopied.
+	settings critAllowUnauthenticatedNetwork: false.
+	self deny: settings critAllowUnauthenticatedNetwork
+]
+
+{ #category : 'tests' }
+AbSettingsTest >> testDefaultCopiedUnsetCritAllowUnauthenticatedNetworkFallsBackToDefault [
+
+	AbSettings default critAllowUnauthenticatedNetwork: false.
+	self deny: AbSettings defaultCopied critAllowUnauthenticatedNetwork
+]
+
+{ #category : 'tests' }
+AbSettingsTest >> testCritAllowUnauthenticatedNetworkSurvivesSaveAndLoad [
+
+	| file settings loaded |
+	file := FileSystem memory root / 'ab-settings.json'.
+	settings := AbSettings new.
+	settings critAllowUnauthenticatedNetwork: false.
+	settings saveFullTo: file.
+	loaded := AbSettings loadFrom: file.
+	self deny: loaded critAllowUnauthenticatedNetwork
+]
+
+{ #category : 'tests' }
 AbSettingsTest >> testCritPortIntervalParsesInclusiveRange [
 
 	AbSettings default critPortRange: '9080-9100'.
@@ -403,4 +438,18 @@ AbSettingsTest >> testCritPortIntervalRejectsMalformedOrOutOfBoundsRanges [
 	#( 'abc' '9080' '9080-' '-9100' ' 9080-9100' '9080-9100 ' '9080-9100-1' '' '0-9100' '9080-65536' '9100-9080' '0-0' ) do: [ :each |
 		AbSettings default critPortRange: each.
 		self assert: AbSettings default critPortInterval isNil ]
+]
+
+{ #category : 'tests' }
+AbSettingsTest >> testCritSettingsSurviveSaveAndLoad [
+
+	| file settings loaded |
+	file := FileSystem memory root / 'ab-settings.json'.
+	settings := AbSettings new.
+	settings useCrit: true.
+	settings critPortRange: '9200-9210'.
+	settings saveFullTo: file.
+	loaded := AbSettings loadFrom: file.
+	self assert: loaded useCrit.
+	self assert: loaded critPortRange equals: '9200-9210'
 ]

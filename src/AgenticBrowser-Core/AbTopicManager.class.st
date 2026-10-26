@@ -40,6 +40,7 @@ Internal Representation:
 - monitoringProcess - Background Process that runs #runMonitoringLoop; excluded from Fuel.
 - default (class inst var) - The global singleton instance.
 - forTest (class inst var) - Isolated instance used by the test suite; does not affect the global instance.
+- announcer (class inst var) - Lazy Announcer for AbTopicManagerLoaded; class>>#announcer: lets tests swap in a private one.
 
 Implementation Points:
 - announcer is excluded from Fuel serialization; subscribers must re-subscribe after each load.
@@ -103,6 +104,13 @@ AbTopicManager class >> defaultLoaded: anInstance [
 AbTopicManager class >> announcer [
 
 	^ announcer ifNil: [ announcer := Announcer new ]
+]
+
+{ #category : 'announcements' }
+AbTopicManager class >> announcer: anAnnouncer [
+	"Test seam: lets a test swap in a private Announcer so its AbTopicManagerLoaded announcements do not reach live subscribers such as an open AbTopicListPresenter."
+
+	announcer := anAnnouncer
 ]
 
 { #category : 'persistence' }

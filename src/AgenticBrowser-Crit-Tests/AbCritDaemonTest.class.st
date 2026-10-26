@@ -64,7 +64,9 @@ AbCritDaemonTest >> readyTopicWithoutConfigNamed: aString [
 	(dir / '.git') ensureCreateDirectory.
 	topic := self topicAt: dir.
 	AbSettings default useCrit: true.
-	topic stateMachine handleEvent: #promptSent.
+	topic stateMachine
+		handleEvent: #promptSent;
+		handleEvent: #turnEnded.
 	^ topic
 ]
 
@@ -100,6 +102,21 @@ AbCritDaemonTest >> daemonFor: aTopic [
 AbCritDaemonTest >> spawnCount: aDaemon [
 
 	^ aDaemon executedCommands count: [ :each | each beginsWith: 'crit --no-open' ]
+]
+
+{ #category : 'private' }
+AbCritDaemonTest >> assertSpawnCommandForTopic: topicName expectedHostAndFlags: hostAndFlags [
+
+	| daemon log |
+	daemon := self daemonFor: (self readyTopicNamed: topicName).
+	daemon spawn.
+	log := AbSettings defaultAgenticBrowserRootDirectory / 'crit-logs' / (topicName , '.log').
+	self assert: (self spawnCount: daemon) equals: 1.
+	self
+		assert: daemon executedCommands last
+		equals: ('crit --no-open {1} >> {2} 2>&1 &' format: {
+				 hostAndFlags.
+				 log fullName shellQuoted })
 ]
 
 { #category : 'tests' }
@@ -194,6 +211,35 @@ AbCritDaemonTest >> testStartRefusalReasonWhenTopicIsInitial [
 ]
 
 { #category : 'tests' }
+AbCritDaemonTest >> testStartRefusalReasonWhenTopicIsWorking [
+
+	| topic |
+	topic := self readyTopicWithoutConfigNamed: 'working'.
+	topic stateMachine handleEvent: #promptSent.
+	self assert: (AbCritDaemon forTopic: topic) refusalReasonOnStart equals: 'topic status is working'
+]
+
+{ #category : 'tests' }
+AbCritDaemonTest >> testStartRefusalReasonWhenTopicIsWaitingForHuman [
+
+	| topic |
+	topic := self readyTopicWithoutConfigNamed: 'waiting'.
+	topic stateMachine handleEvent: #permissionRequested.
+	self assert: (AbCritDaemon forTopic: topic) refusalReasonOnStart equals: 'topic status is waitingForHuman'
+]
+
+{ #category : 'tests' }
+AbCritDaemonTest >> testStartRefusalReasonWhenTopicIsGoalAchieved [
+
+	| topic |
+	topic := self readyTopicWithoutConfigNamed: 'achieved'.
+	topic stateMachine
+		handleEvent: #promptSent;
+		handleEvent: #goalReached.
+	self assert: (AbCritDaemon forTopic: topic) refusalReasonOnStart equals: 'topic status is goalAchieved'
+]
+
+{ #category : 'tests' }
 AbCritDaemonTest >> testStartRefusalReasonPrefersUnavailableOverInitial [
 
 	| topic |
@@ -238,7 +284,7 @@ AbCritDaemonTest >> testStartReviewReusesRunningDaemon [
 	self assert: port equals: 9080.
 	self assert: topic messages last text equals: 'Crit review: http://localhost:9080/ (crit asks once to trust this project''s hooks when you first press Finish)'.
 	self assert: (self spawnCount: daemon) equals: 0.
-	self assert: topic isWorking
+	self assert: topic isEndTurn
 ]
 
 { #category : 'tests' }
@@ -265,6 +311,44 @@ AbCritDaemonTest >> testStartReviewSpawnsThenReportsUrl [
 ]
 
 { #category : 'tests' }
+AbCritDaemonTest >> testSpawnAllowsUnauthenticatedNetworkAccessByDefault [
+
+	self
+		assertSpawnCommandForTopic: 'network'
+		expectedHostAndFlags: '--host 0.0.0.0 --allow-unauthenticated-network'
+]
+
+{ #category : 'tests' }
+AbCritDaemonTest >> testSpawnBindsToLocalhostWhenUnauthenticatedNetworkAccessIsDisallowed [
+
+	AbSettings default critAllowUnauthenticatedNetwork: false.
+	self
+		assertSpawnCommandForTopic: 'localhost'
+		expectedHostAndFlags: '--host 127.0.0.1'
+]
+
+{ #category : 'tests' }
+AbCritDaemonTest >> testReviewUrlUsesRequestedHostWhenUnauthenticatedNetworkAccessIsAllowed [
+
+	| daemon |
+	daemon := self daemonFor: (self readyTopicNamed: 'lan-url').
+	self
+		assert: (daemon reviewUrlForHost: '192.168.1.10')
+		equals: 'http://192.168.1.10:9080/'
+]
+
+{ #category : 'tests' }
+AbCritDaemonTest >> testReviewUrlUsesLocalhostWhenUnauthenticatedNetworkAccessIsDisallowed [
+
+	| daemon |
+	daemon := self daemonFor: (self readyTopicNamed: 'loopback-url').
+	AbSettings default critAllowUnauthenticatedNetwork: false.
+	self
+		assert: (daemon reviewUrlForHost: '192.168.1.10')
+		equals: 'http://localhost:9080/'
+]
+
+{ #category : 'tests' }
 AbCritDaemonTest >> testStartReviewTimesOutWhenDaemonNeverRuns [
 
 	| topic daemon reason log |
@@ -279,7 +363,44 @@ AbCritDaemonTest >> testStartReviewTimesOutWhenDaemonNeverRuns [
 	self assert: (reason includesSubstring: 'on port 9080 (the port may be in use by another process)').
 	self assert: topic messages last text equals: 'Crit review failed: ' , reason , ' (log: ' , log fullName , ')'.
 	self assert: (self spawnCount: daemon) equals: 1.
-	self assert: topic isWorking
+	self assert: topic isEndTurn
+]
+
+{ #category : 'tests' }
+AbCritDaemonTest >> testStartReviewTimeoutReportsCritOutputOfThisSpawn [
+
+	| daemon reason |
+	daemon := self daemonFor: (self readyTopicNamed: 'no-changes').
+	daemon logFile ensureDelete.
+	self appendLog: 'Output of an earlier spawn' of: daemon.
+	reason := self timeoutReasonOf: daemon onSpawn: [
+		          self appendLog: 'No changed files found.\\  crit  review changed files' withCRs of: daemon ].
+	self assert: reason equals: 'crit did not start within 0 seconds on port 9080: No changed files found.'
+]
+
+{ #category : 'tests' }
+AbCritDaemonTest >> testStartReviewTimeoutSuggestsPortConflictWhenLogShrankSinceSpawn [
+
+	| daemon reason |
+	daemon := self daemonFor: (self readyTopicNamed: 'shrunk-log').
+	daemon logFile ensureDelete.
+	self appendLog: 'Output of an earlier spawn' of: daemon.
+	reason := self timeoutReasonOf: daemon onSpawn: [
+		          daemon logFile ensureDelete.
+		          self appendLog: 'x' of: daemon ].
+	self assert: reason equals: 'crit did not start within 0 seconds on port 9080 (the port may be in use by another process)'
+]
+
+{ #category : 'tests' }
+AbCritDaemonTest >> testStartReviewTimeoutSuggestsPortConflictWhenLogIsInvalidUtf8 [
+
+	| daemon reason |
+	daemon := self daemonFor: (self readyTopicNamed: 'invalid-utf8-log').
+	daemon logFile ensureDelete.
+	daemon logFile parent ensureCreateDirectory.
+	reason := self timeoutReasonOf: daemon onSpawn: [
+		          daemon logFile binaryWriteStreamDo: [ :stream | stream nextPutAll: #[ 16rE3 16r81 ] ] ].
+	self assert: reason equals: 'crit did not start within 0 seconds on port 9080 (the port may be in use by another process)'
 ]
 
 { #category : 'tests' }
@@ -308,7 +429,7 @@ AbCritDaemonTest >> testStartReviewStatusFailurePostsMessageWithoutSpawning [
 	self assert: reason equals: 'crit status failed (is crit on PATH?)'.
 	self assert: topic messages last text equals: 'Crit review failed: crit status failed (is crit on PATH?) (log: ' , log fullName , ')'.
 	self assert: (self spawnCount: daemon) equals: 0.
-	self assert: topic isWorking
+	self assert: topic isEndTurn
 ]
 
 { #category : 'tests' }
@@ -344,7 +465,7 @@ AbCritDaemonTest >> testStartReviewSpawnErrorPostsMessageAndLeavesStatus [
 		ifFailed: [ :failed | reason := failed ].
 	self assert: reason equals: 'spawn failed'.
 	self assert: (topic messages last text includesSubstring: 'Crit review failed: spawn failed (log: ').
-	self assert: topic isWorking
+	self assert: topic isEndTurn
 ]
 
 { #category : 'tests' }
@@ -491,6 +612,36 @@ AbCritDaemonTest >> testOverlappingStartsSpawnOnce [
 	self assert: (done waitTimeoutSeconds: 2) equals: false.
 	self assert: (self spawnCount: first) + (self spawnCount: second) equals: 1 ]
 		ensure: [ release signal ]
+]
+
+{ #category : 'private' }
+AbCritDaemonTest >> appendLog: aString of: aDaemon [
+
+	aDaemon logFile parent ensureCreateDirectory.
+	aDaemon logFile writeStreamDo: [ :stream |
+		stream
+			setToEnd;
+			nextPutAll: aString;
+			lf ].
+	^ ''
+]
+
+{ #category : 'private' }
+AbCritDaemonTest >> timeoutReasonOf: aDaemon onSpawn: aBlock [
+
+	| reason |
+	aDaemon commandBlock: [ :cmd |
+		(cmd beginsWith: 'crit status')
+			ifTrue: [ '{"daemon":{"running":false}}' ]
+			ifFalse: [
+				aBlock value.
+				'' ] ].
+	[ aDaemon
+		startReviewForHost: 'localhost'
+		ifStarted: [ :url :port | self fail: url ]
+		ifFailed: [ :failed | reason := failed ] ]
+		ensure: [ aDaemon logFile ensureDelete ].
+	^ reason
 ]
 
 { #category : 'private' }
