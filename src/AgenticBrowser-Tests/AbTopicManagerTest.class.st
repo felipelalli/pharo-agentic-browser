@@ -1,9 +1,41 @@
 Class {
 	#name : 'AbTopicManagerTest',
 	#superclass : 'AbTestCase',
+	#instVars : [
+		'originalDefault'
+	],
 	#category : 'AgenticBrowser-Tests',
 	#package : 'AgenticBrowser-Tests'
 }
+
+{ #category : 'running' }
+AbTopicManagerTest >> setUp [
+
+	super setUp.
+	"Read the variable directly: AbTopicManager default would create a default when there is none."
+	self originalDefault: (AbTopicManager instVarNamed: 'default')
+]
+
+{ #category : 'running' }
+AbTopicManagerTest >> tearDown [
+	"Restore the default for tests that swap it. defaultLoaded: tears down the swapped-in manager and restarts the original."
+
+	(AbTopicManager instVarNamed: 'default') == self originalDefault ifFalse: [
+		AbTopicManager defaultLoaded: self originalDefault ].
+	super tearDown
+]
+
+{ #category : 'accessing' }
+AbTopicManagerTest >> originalDefault [
+
+	^ originalDefault
+]
+
+{ #category : 'accessing' }
+AbTopicManagerTest >> originalDefault: anAbTopicManager [
+
+	originalDefault := anAbTopicManager
+]
 
 { #category : 'tests' }
 AbTopicManagerTest >> testAddTopic [
@@ -142,8 +174,7 @@ AbTopicManagerTest >> testCleanupForImageQuitDisconnectsBelowChildWatcherPriorit
 { #category : 'tests' }
 AbTopicManagerTest >> testStartUpTrueResetsStaleConnectionsOnDefaultManager [
 
-	| topic session mockClient originalDefault |
-	originalDefault := AbTopicManager default.
+	| topic session mockClient |
 	AbTopicManager default: AbTopicManager new.
 	topic := self newTopic: 'Stale on resume'.
 	AbTopicManager default addTopic: topic.
@@ -151,50 +182,36 @@ AbTopicManagerTest >> testStartUpTrueResetsStaleConnectionsOnDefaultManager [
 	mockClient := MockObject new.
 	mockClient on: #disconnect verify: [ ].
 	session client: mockClient.
-	[
 	AbTopicManager startUp: true.
-	self assert: session client isNil ]
-		ensure: [
-			AbTopicManager defaultLoaded: originalDefault.
-			AbTopicManager forTest: nil ]
+	self assert: session client isNil
 ]
 
 { #category : 'tests' }
 AbTopicManagerTest >> testStartUpFalseDoesNotResetStaleConnections [
 
-	| topic session mockClient originalDefault |
-	originalDefault := AbTopicManager default.
+	| topic session mockClient |
 	AbTopicManager default: AbTopicManager new.
 	topic := self newTopic: 'Not resuming'.
 	AbTopicManager default addTopic: topic.
 	session := topic session.
 	mockClient := MockObject new.
 	session client: mockClient.
-	[
 	AbTopicManager startUp: false.
-	self assert: session client == mockClient ]
-		ensure: [
-			AbTopicManager defaultLoaded: originalDefault.
-			AbTopicManager forTest: nil ]
+	self assert: session client == mockClient
 ]
 
 { #category : 'tests' }
 AbTopicManagerTest >> testShutDownDoesNothingWhenDefaultIsNil [
 
-	| originalDefault |
-	originalDefault := AbTopicManager default.
 	AbTopicManager default: nil.
-	[
 	AbTopicManager shutDown: true.
-	self assert: (AbTopicManager instVarNamed: 'default') isNil ]
-		ensure: [ AbTopicManager defaultLoaded: originalDefault ]
+	self assert: (AbTopicManager instVarNamed: 'default') isNil
 ]
 
 { #category : 'tests' }
 AbTopicManagerTest >> testShutDownSavesTopicManagerWhenDefaultExists [
 
-	| originalDefault backupBytes file topic manager reloaded |
-	originalDefault := AbTopicManager default.
+	| backupBytes file topic manager reloaded |
 	file := AbTopicManager defaultFileReference.
 	backupBytes := file exists ifTrue: [ file binaryReadStream upToEnd ] ifFalse: [ nil ].
 	manager := AbTopicManager new.
@@ -206,7 +223,6 @@ AbTopicManagerTest >> testShutDownSavesTopicManagerWhenDefaultExists [
 	reloaded := AbTopicManager loadFrom: file.
 	self assert: reloaded topics first title equals: topic title ]
 		ensure: [
-			AbTopicManager defaultLoaded: originalDefault.
 			backupBytes
 				ifNil: [ file ensureDelete ]
 				ifNotNil: [ file binaryWriteStreamDo: [ :s | s nextPutAll: backupBytes ] ] ]
@@ -230,19 +246,15 @@ AbTopicManagerTest >> testDefaultReturnsSameInstance [
 { #category : 'tests' }
 AbTopicManagerTest >> testInitializeStopsActiveWatchersBeforeReset [
 
-	| topic watcher originalDefault |
-	originalDefault := AbTopicManager default.
+	| topic watcher |
 	AbTopicManager default: AbTopicManager new.
 	topic := self newTopic: 'Orphan during init'.
 	AbTopicManager default addTopic: topic.
 	topic startWatching.
 	watcher := topic relatedPackagesWatcher.
 	self assert: watcher isWatching.
-	[ AbTopicManager initialize.
-	  self deny: watcher isWatching ]
-		ensure: [
-			AbTopicManager defaultLoaded: originalDefault.
-			AbTopicManager forTest: nil ]
+	AbTopicManager initialize.
+	self deny: watcher isWatching
 ]
 
 { #category : 'tests' }
@@ -574,39 +586,28 @@ AbTopicManagerTest >> testResumeStalledTopicsSendsResumePromptOnlyToStalledTopic
 { #category : 'tests' }
 AbTopicManagerTest >> testStartUpTrueStartsMonitoringAndWatching [
 
-	| topic originalDefault |
-	originalDefault := AbTopicManager default.
+	| topic |
 	AbTopicManager default: AbTopicManager new.
 	topic := self newTopic: 'Resume topic'.
 	AbTopicManager default addTopic: topic.
-	[
 	AbTopicManager startUp: true.
 	self assert: AbTopicManager default isMonitoring.
-	self assert: topic relatedPackagesWatcher isWatching ]
-		ensure: [
-			AbTopicManager default stopMonitoring.
-			AbTopicManager defaultLoaded: originalDefault.
-			AbTopicManager forTest: nil ]
+	self assert: topic relatedPackagesWatcher isWatching
 ]
 
 { #category : 'tests' }
 AbTopicManagerTest >> testDefaultLoadedStopsPreviousMonitoring [
 
-	| originalDefault oldManager newManager |
-	originalDefault := AbTopicManager default.
+	| oldManager newManager |
 	oldManager := AbTopicManager new.
 	oldManager startMonitoring.
 	self assert: oldManager isMonitoring.
 
 	newManager := AbTopicManager new.
 	AbTopicManager default: oldManager.
-	[
 	AbTopicManager defaultLoaded: newManager.
 	self deny: oldManager isMonitoring.
-	self assert: newManager isMonitoring ]
-		ensure: [
-			newManager stopMonitoring.
-			AbTopicManager defaultLoaded: originalDefault ]
+	self assert: newManager isMonitoring
 ]
 
 { #category : 'tests' }
@@ -622,19 +623,16 @@ AbTopicManagerTest >> testAbTopicManagerLoadedConstructor [
 { #category : 'tests' }
 AbTopicManagerTest >> testDefaultLoadedSetsDefaultAndAnnouncesAbTopicManagerLoaded [
 
-	| originalDefault newManager received |
-	originalDefault := AbTopicManager default.
+	| newManager received |
 	newManager := AbTopicManager new.
-	AbTopicManager announcer when: AbTopicManagerLoaded do: [ :ann | received := ann topicManager ] for: self.
 	"defaultLoaded: tears down the current default, so swap in a throwaway one to keep the original's topics connected."
 	AbTopicManager default: AbTopicManager new.
 	[
+	AbTopicManager announcer when: AbTopicManagerLoaded do: [ :ann | received := ann topicManager ] for: self.
 	AbTopicManager defaultLoaded: newManager.
 	self assert: AbTopicManager default == newManager.
 	self assert: received == newManager ]
-		ensure: [
-			AbTopicManager announcer unsubscribe: self.
-			AbTopicManager defaultLoaded: originalDefault ]
+		ensure: [ AbTopicManager announcer unsubscribe: self ]
 ]
 
 { #category : 'tests' }
