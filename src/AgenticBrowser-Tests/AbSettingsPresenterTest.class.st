@@ -169,6 +169,30 @@ AbSettingsPresenterTest >> testUseCritCheckboxShowsDefaultValue [
 ]
 
 { #category : 'tests' }
+AbSettingsPresenterTest >> testCritAllowUnauthenticatedNetworkCheckboxShowsDefaultValue [
+	self assert: self presenter critAllowUnauthenticatedNetworkCheckbox state equals: true
+]
+
+{ #category : 'tests' }
+AbSettingsPresenterTest >> testCritAllowUnauthenticatedNetworkCheckboxShowsSettingsValue [
+	| s |
+	s := AbSettings new.
+	s critAllowUnauthenticatedNetwork: false.
+	self presenter: (AbSettingsPresenter on: s).
+	self assert: self presenter critAllowUnauthenticatedNetworkCheckbox state equals: false
+]
+
+{ #category : 'tests' }
+AbSettingsPresenterTest >> testSaveWritesCritAllowUnauthenticatedNetworkToSettings [
+	| s |
+	s := AbSettings new.
+	self presenter: (AbSettingsPresenter on: s).
+	self presenter critAllowUnauthenticatedNetworkCheckbox state: false.
+	self presenter saveSettings.
+	self assert: s critAllowUnauthenticatedNetwork equals: false
+]
+
+{ #category : 'tests' }
 AbSettingsPresenterTest >> testCritPortRangeFieldShowsDefaultValue [
 	self assert: self presenter critPortRangeField text equals: '9080-9100'
 ]
@@ -257,6 +281,7 @@ AbSettingsPresenterTest >> testSaveButtonClosesWindowWhenSettingsAreValid [
 AbSettingsPresenterTest >> testCritSettingsAreShownByDefault [
 	self assert: self presenter showsCritSettings.
 	self assert: (self presenter layout allPresenters includes: self presenter useCritCheckbox).
+	self assert: (self presenter layout allPresenters includes: self presenter critAllowUnauthenticatedNetworkCheckbox).
 	self assert: (self presenter layout allPresenters includes: self presenter critPortRangeField)
 ]
 
@@ -264,6 +289,7 @@ AbSettingsPresenterTest >> testCritSettingsAreShownByDefault [
 AbSettingsPresenterTest >> testCritSettingsAreHiddenWhenNotShown [
 	self presenter showsCritSettings: false.
 	self deny: (self presenter layout allPresenters includes: self presenter useCritCheckbox).
+	self deny: (self presenter layout allPresenters includes: self presenter critAllowUnauthenticatedNetworkCheckbox).
 	self deny: (self presenter layout allPresenters includes: self presenter critPortRangeField).
 	self deny: (self presenter layout allPresenters includes: self presenter validationMessageLabel)
 ]

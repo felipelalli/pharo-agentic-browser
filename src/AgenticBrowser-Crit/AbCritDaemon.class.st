@@ -15,7 +15,7 @@ Collaborators:
 - AbCritConfigFile: I ask it to ensure the port and the finish hooks before spawning, and read the port through one cached instance.
 - AbCritReviewFinishResultsManager: I ask it to delete my topic's result files when a start succeeds.
 - AbTopicSession: It caches me, one per topic.
-- AbSettings: I read #useCrit and the crit log directory.
+- AbSettings: I read #useCrit, #critAllowUnauthenticatedNetwork (bind to all interfaces with unauthenticated access, or to localhost only), and the crit log directory.
 - AbStubCritDaemon: Tests override #runShellCommand: so no process is spawned.
 
 Public API and Key Messages:
@@ -310,8 +310,17 @@ AbCritDaemon >> spawn [
 	self logSizeBeforeSpawn: (self logFile exists
 			 ifTrue: [ self logFile size ]
 			 ifFalse: [ 0 ]).
-	self runShellCommand: 'crit --no-open --host 0.0.0.0 --allow-unauthenticated-network >> '
-		, self logFile fullName shellQuoted , ' 2>&1 &'
+	self runShellCommand: ('crit --no-open {1} >> {2} 2>&1 &' format: {
+			 self networkAccessArguments.
+			 self logFile fullName shellQuoted })
+]
+
+{ #category : 'private' }
+AbCritDaemon >> networkAccessArguments [
+
+	^ AbSettings default critAllowUnauthenticatedNetwork
+		  ifTrue: [ '--host 0.0.0.0 --allow-unauthenticated-network' ]
+		  ifFalse: [ '--host 127.0.0.1' ]
 ]
 
 { #category : 'private' }

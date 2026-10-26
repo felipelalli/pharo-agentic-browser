@@ -5,7 +5,7 @@ Responsibility:
 - I store timeout durations and options for AI permission and package export approvals.
 - I cap how many characters of a file attachment's contents are embedded into a prompt via #maxAttachmentSize.
 - I control whether built-in Smalltalk MCP servers are merged into the agent's MCP config.
-- I control whether crit review is offered (#useCrit) and the inclusive port range string (#critPortRange) from which a port is picked when crit starts.
+- I control whether crit review is offered (#useCrit), the inclusive port range string (#critPortRange) from which a port is picked when crit starts, and whether crit accepts unauthenticated network access or binds to localhost only (#critAllowUnauthenticatedNetwork).
 - I persist the list of available coding agents shown in the New Topic dialog.
 - I control how often AbTopicManager runs its periodic topic checks via #monitoringIntervalSeconds. I still accept the old key stallMonitoringIntervalSeconds when loading, and save it under the new key.
 - I load from and save to ab-settings.json using STON/JSON serialization.
@@ -281,6 +281,12 @@ AbSettings >> defaultCritPortRange [
 ]
 
 { #category : 'defaults' }
+AbSettings >> defaultCritAllowUnauthenticatedNetwork [
+	self isDefault ifFalse: [ ^ self class default defaultCritAllowUnauthenticatedNetwork ].
+	^ true
+]
+
+{ #category : 'defaults' }
 AbSettings >> defaultWatcherMessageThrottleSeconds [
 	self isDefault ifFalse: [ ^ self class default defaultWatcherMessageThrottleSeconds ].
 	^ 2
@@ -439,6 +445,18 @@ AbSettings >> critPortRange [
 AbSettings >> critPortRange: aString [
 
 	self at: #critPortRange put: aString
+]
+
+{ #category : 'accessing' }
+AbSettings >> critAllowUnauthenticatedNetwork [
+
+	^ self at: #critAllowUnauthenticatedNetwork ifAbsent: [ self defaultCritAllowUnauthenticatedNetwork ]
+]
+
+{ #category : 'accessing' }
+AbSettings >> critAllowUnauthenticatedNetwork: aBoolean [
+
+	self at: #critAllowUnauthenticatedNetwork put: aBoolean
 ]
 
 { #category : 'accessing' }
